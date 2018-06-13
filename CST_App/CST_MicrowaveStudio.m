@@ -9,6 +9,11 @@ classdef CST_MicrowaveStudio < handle
     %   For a list of methods, type methods(CST_MicrowaveStudio)
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
+    %
+    %   Additional custom functions may be added to CST histroy list using
+    %   the same VBA format below and calling:
+    %   CST_MicrowaveStudioHandle.CST.invoke('AddToHistory','Action String identifier',VBA])
+    %
     %   See Also: actxserver, addGradedIndexMaterialCST
     %
     %   Written by Henry Giddens, Antennas and Electromagnetics
@@ -24,6 +29,7 @@ classdef CST_MicrowaveStudio < handle
     properties (Hidden)
         mws
         ports = 0;
+        solver = 't';
     end
     properties (Access = private)
        version = 0.1; 
@@ -33,6 +39,11 @@ classdef CST_MicrowaveStudio < handle
             %CMWS_MODEL Construct an instance of this class
             %   Detailed explanation goes here
             obj.folder = folder;
+            %Create a directory in 'folder' called
+            %CST_MicrowaveStudio_Files which is added to .gitignore
+            dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
+            mkdir(dirstring);
+            
             obj.filename = filename;
             obj.CST = actxserver('CSTStudio.application');
             obj.mws = obj.CST.invoke('NewMWS');
@@ -152,6 +163,13 @@ classdef CST_MicrowaveStudio < handle
             obj.mws.invoke('AddToHistory',['define material: ',name],VBA);
         end
         function addDiscretePort(obj,X,Y,Z,R,impedance)
+            %Add a discrete line source in the positions defined by the X, Y and Z
+            %inputs, with radius, R, and impedance defined by the other
+            %input arguments
+            %
+            % Example:
+            % %Add a Z-directed line source of 20 units long at point XY = [0,5]
+            % CST.addDiscretePort([0 0], [5 5], [-10 10], 1, 50)
             if nargin  < 5
                 R = 0;
             end
@@ -271,6 +289,28 @@ classdef CST_MicrowaveStudio < handle
                         
             obj.mws.invoke('AddToHistory','define boundaries',VBA);
             
+            if any(strcmpi(varargin,'unit cell'))
+                %Set Floquet port mode to 2 (default - 18)
+                VBA = sprintf(['With FloquetPort\n',...
+                                '.Reset\n',...
+                                '.SetDialogTheta "0"\n',... 
+                                '.SetDialogPhi "0"\n',... 
+                                '.SetPolarizationIndependentOfScanAnglePhi "0.0", "False"\n',...  
+                                '.SetSortCode "+beta/pw"\n',... 
+                                '.SetCustomizedListFlag "False"\n',... 
+                                '.Port "Zmin"\n',... 
+                                '.SetNumberOfModesConsidered "2"\n',... 
+                                '.SetDistanceToReferencePlane "0.0"\n',... 
+                                '.SetUseCircularPolarization "False"\n',... 
+                                '.Port "Zmax"\n',... 
+                                '.SetNumberOfModesConsidered "2"\n',... 
+                                '.SetDistanceToReferencePlane "0.0"\n',... 
+                                '.SetUseCircularPolarization "False"\n',... 
+                               'End With']);
+                   obj.mws.invoke('AddToHistory','define Floquet Port boundaries',VBA);        
+                           
+                               
+            end
         end
         function rotateObject(obj,componentName,objectName,rotationAngles,rotationCenter,copy,repetitions)
             
@@ -375,29 +415,86 @@ classdef CST_MicrowaveStudio < handle
              obj.mws.invoke('AddToHistory',['define cylinder:',component,':',name],VBA);
 
         end
+        function addSphere(obj,X,Y,Z,R1,R2,R3,name,component,material,varargin)
+            if R2 > R1 || R3 > R1
+                warning('Center Radius (R1) must be larger than top (R2) and bottom (R3) radii\nExiting without adding sphere');
+                return
+            end
+            
+            p = inputParser;
+            p.addParameter('orientation','z');
+            p.addParameter('segments',0);
+            p.parse(varargin{:})
+            
+            %add the following to input parser
+            orientation = p.Results.orientation;
+            segments = p.Results.segments;
+            
+            VBA = sprintf(['With Sphere\n',... 
+                            '.Reset \n',... 
+                            '.Name "%s"\n',...  
+                            '.Component "%s"\n',...  
+                            '.Material "%s"\n',...  
+                            '.Axis "%s"\n',...  
+                            '.CenterRadius "%f"\n',...  
+                            '.TopRadius "%f"\n',...  
+                            '.BottomRadius "%f"\n',...  
+                            '.Center "%f", "%f", "%f"\n',...  
+                            '.Segments "%d"\n',...  
+                            '.Create\n',...  
+                           'End With'],...
+                           name,component,material,orientation,R1,R2,R3,X,Y,Z,segments);
+            
+            obj.mws.invoke('AddToHistory',['define sphere:',component,':',name],VBA);
+            
+        end
         function setFreq(obj,F1,F2)
            obj.mws.invoke('AddToHistory','Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2)); 
         end
         function save(obj)
             obj.mws.invoke('saveas',fullfile(obj.folder,obj.filename),'false');
         end
-        function setSimultaneousPortmodes(obj,port,amplitude,phase,status)
-            
-            
-        end
         function setSolver(obj,solver)
             switch lower(solver)
                 case {'frequency','f','freq'}
-                    VBA = ['ChangeSolverType "HF Frequency Domain"'];
+                    VBA = 'ChangeSolverType "HF Frequency Domain"';
+                    obj.solver = 'f';
                 case {'time','time domain','td'}
                     VBA = 'ChangeSolverType "HF Time Domain" ';
+                    obj.solver = 't';
             end
             obj.mws.invoke('AddToHistory','change solver type',VBA);
             
         end
+        function defineFloquetModes(nModes)
+            
+           VBA = sprintf(['With FloquetPort\n',...
+                                '.Reset\n',...
+                                '.SetDialogTheta "0"\n',... 
+                                '.SetDialogPhi "0"\n',... 
+                                '.SetPolarizationIndependentOfScanAnglePhi "0.0", "False"\n',...  
+                                '.SetSortCode "+beta/pw"\n',... 
+                                '.SetCustomizedListFlag "False"\n',... 
+                                '.Port "Zmin"\n',... 
+                                '.SetNumberOfModesConsidered "%d"\n',... 
+                                '.SetDistanceToReferencePlane "0.0"\n',... 
+                                '.SetUseCircularPolarization "False"\n',... 
+                                '.Port "Zmax"\n',... 
+                                '.SetNumberOfModesConsidered "%d"\n',... 
+                                '.SetDistanceToReferencePlane "0.0"\n',... 
+                                '.SetUseCircularPolarization "False"\n',... 
+                               'End With'],nModes,nModes);
+                   obj.mws.invoke('AddToHistory','define Floquet Port boundaries',VBA);   
+                   
+        end
         function runSimulation(obj)
-            solver = obj.mws.invoke('Solver');
-            solver.invoke('Start');
+            switch obj.solver
+                case 'f'
+                    s = obj.mws.invoke('FDSolver'); % handle to frequency domain solver
+                case 't'
+                    s = obj.mws.invoke('Solver');   % handle to time domain solver
+            end
+            s.invoke('Start');
         end
     end
 end
