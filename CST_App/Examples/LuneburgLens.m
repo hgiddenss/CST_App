@@ -73,8 +73,8 @@ CST.addSymmetryPlane('Z','electric')
 CST.setBackgroundLimits([lamda lamda],[lamda lamda],[0 0]);
 
 %Add a field monitor at 2.4GHz
-CST.addMonitor('EField',2.4);
-CST.addMonitor('farfield',2.4);
+CST.addFieldMonitor('EField',2.4);
+CST.addFieldMonitor('farfield',2.4);
 
 % Choose the TD solver (default)
 CST.setSolver('td')

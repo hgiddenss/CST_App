@@ -6,17 +6,48 @@ classdef CST_MicrowaveStudio < handle
     %   functions to perform regular operations in CST mathematically. All
     %   steps are added to the history tree as if the user had created the
     %   model interactively.
-    %   For a list of methods, type methods(CST_MicrowaveStudio)
+    %   
+    %   -----Methods Overview-----
+    %
+    %   Class Creator:
+    %   CST_MicrowaveStudio
+    %
+    %   Simulation Methods:
+    %   addDiscretePort   
+    %   defineUnits
+    %   setFreq
+    %   setSolver
+    %   setBoundaryConditions
+    %   addFieldMonitor
+    %   setBackgroundLimits
+    %   addSymmetryPlane
+    %   defineFloquetModes
+    %   runSimulation
+    %   save
+    %
+    %   Build Methods:
+    %   addNormalMaterial
+    %   addAnisotropicMaterial
+    %   addBrick
+    %   addCylinder
+    %   addPolygonBlock
+    %   addSphere
+    %   rotateObject
+    %
+    %   Result Methods:
+    %   getSParameters
+    %   
+    %
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
     %
     %   Additional custom functions may be added to CST histroy list using
     %   the same VBA format below and calling:
-    %   CST_MicrowaveStudioHandle.CST.invoke('AddToHistory','Action String identifier',VBA])
+    %   CST_MicrowaveStudioHandle.mws.invoke('AddToHistory','Action String identifier',VBA])
     %
     %   See Also: actxserver, addGradedIndexMaterialCST
     %
-    %   Written by Henry Giddens, Antennas and Electromagnetics
+    %   Copyright: Henry Giddens 2018, Antennas and Electromagnetics
     %   Group, Queen Mary University London, 2018 (For further help,
     %   requests, and bug fixes contact h.giddens@qmul.ac.uk) 
     
@@ -24,10 +55,10 @@ classdef CST_MicrowaveStudio < handle
         CST       % Handle to CST through actxserver
         folder    % Folder 
         filename  % Filename
-        
+        mws
     end
     properties (Hidden)
-        mws
+        
         ports = 0;
         solver = 't';
     end
@@ -43,8 +74,10 @@ classdef CST_MicrowaveStudio < handle
             %CST_MicrowaveStudio_Files which is added to .gitignore
             dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
             mkdir(dirstring);
-            
-            obj.filename = filename;
+            obj.folder = dirstring;
+            %Ensure file is .cst.
+            [~,filename,~] = fileparts(filename);
+            obj.filename = [filename,'.cst'];
             obj.CST = actxserver('CSTStudio.application');
             obj.mws = obj.CST.invoke('NewMWS');
            % obj.components = struct();
@@ -192,7 +225,7 @@ classdef CST_MicrowaveStudio < handle
              obj.mws.invoke('AddToHistory',['define discrete port: ',num2str(obj.ports+1)],VBA);
              obj.ports = obj.ports + 1;
         end
-        function addMonitor(obj,fieldType,freq)
+        function addFieldMonitor(obj,fieldType,freq)
             % Add a field monitor at specified frequency
             % Examples:
             % CST.AddMonitor('Efield',2.4);
@@ -485,7 +518,6 @@ classdef CST_MicrowaveStudio < handle
                                 '.SetUseCircularPolarization "False"\n',... 
                                'End With'],nModes,nModes);
                    obj.mws.invoke('AddToHistory','define Floquet Port boundaries',VBA);   
-                   
         end
         function runSimulation(obj)
             switch obj.solver
@@ -495,6 +527,62 @@ classdef CST_MicrowaveStudio < handle
                     s = obj.mws.invoke('Solver');   % handle to time domain solver
             end
             s.invoke('Start');
+        end
+        function [freq,sparam,sFileType] = getSParameters(obj,sParamType)
+            %Get the Sparameters from the 1D results in CST
+            % CST.getSParameters will return all available S-Parameters
+            % CST.getSParameters('S11') will return the S1,1 value in the
+            % 1D result tree.
+            % CST.getSParameters('SZmax(1)Zmax(1)') will return the
+            % reflection coefficient of mode 1 at the ZMax port for a unit
+            % cell type simulation
+            
+            
+            if nargin == 2
+                %sParamType
+            end
+            obj.mws.invoke('SelectTreeItem','1D Results\S-Parameters');
+            
+            p = obj.mws.invoke('Plot1D');
+            nCurves = p.invoke('GetNumberOfCurves');
+            sFileType = cell(0,1);
+            %freq = zeros(nCurves,0);
+            %sparam = zeros(nCurves,0);
+            
+            for i = 1:nCurves
+                fname = p.invoke('GetCurveFileName',i-1);
+                
+                [~,sFileType{end+1},~] = fileparts(fname); %#ok<AGROW>
+                %remove the c in sFileType - is this always the case?
+                sFileType{end} = sFileType{end}(2:end);
+                if nargin == 2
+                    %test is sFileType is the same as SType,
+                    
+                    
+                    if ~strcmp(sFileType{end},sParamType)
+                        continue
+                    else 
+                        i = 1; %#ok<FXSET>
+                    end
+                    
+                end
+                
+                r = obj.mws.invoke('Result1DComplex',fname);
+                try
+                    freq(:,i) = r.invoke('GetArray','x'); %#ok<AGROW> %This will fail if curves have different numbers of points
+                    s_real = r.invoke('GetArray','yre');
+                    s_im = r.invoke('GetArray','yim');
+                    
+                    sparam(:,i) = s_real + 1i*s_im; %#ok<AGROW>
+                    if nargin == 2
+                        sFileType = sFileType{1};
+                        break;
+                    end
+                catch err
+                    warning('Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
+                    rethrow(err);
+                end
+            end
         end
     end
 end

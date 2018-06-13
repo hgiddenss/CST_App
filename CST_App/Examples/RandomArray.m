@@ -19,3 +19,5 @@ for i = 1:nScatter
     CST.addSphere(R(i,1),R(i,2),R(i,3),radius,0,0,name,component,material)
 
 end
+
+CST.save

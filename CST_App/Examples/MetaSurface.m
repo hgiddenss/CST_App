@@ -35,3 +35,14 @@ for i = 1:nPix
 end
 
 CST.setFreq(9, 11);
+CST.save;
+
+[freq,S,SType] = CST.getSParameters;
+
+ax = axes('parent',figure('Position',[680 576 780 402]));
+hold on
+for i = 1:numel(SType)
+    plot(ax,freq(:,i),20*log10(abs(S(:,i))))
+end
+legend(SType,'location','eastoutside')
+
