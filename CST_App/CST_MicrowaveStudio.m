@@ -2,8 +2,10 @@ classdef CST_MicrowaveStudio < handle
     %CST_MicrowaveStudio creates a CST_MicrowaveStudio object which acts as
     %an interface between MATLAB and CST Microwave Studio.
     %   CST_MicrowaveStudio(folder,filename) creates a new CST MWS session
-    %   in the specified file location. CST_MicrowaveStudio contains a number of 
-    %   functions to perform regular operations in CST mathematically. All
+    %   in a subfolder in the specified file location. The subfolder is
+    %   called '/CST_MicrowaveStudio_Files' and is only created when the
+    %   CST file is saved. CST_MicrowaveStudio contains a number of
+    %   functions to perform regular operations in CST mathematically. All 
     %   steps are added to the history tree as if the user had created the
     %   model interactively.
     %   
@@ -11,6 +13,11 @@ classdef CST_MicrowaveStudio < handle
     %
     %   Class Creator:
     %   CST_MicrowaveStudio
+    %
+    %   File Methods:
+    %   save
+    %   quit
+    %   openFile (Static)
     %
     %   Simulation Methods:
     %   addDiscretePort   
@@ -23,7 +30,6 @@ classdef CST_MicrowaveStudio < handle
     %   addSymmetryPlane
     %   defineFloquetModes
     %   runSimulation
-    %   save
     %
     %   Build Methods:
     %   addNormalMaterial
@@ -37,7 +43,6 @@ classdef CST_MicrowaveStudio < handle
     %   Result Methods:
     %   getSParameters
     %   
-    %
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
     %
@@ -63,36 +68,33 @@ classdef CST_MicrowaveStudio < handle
         solver = 't';
     end
     properties (Access = private)
-       version = 0.1; 
+       version = 1.0; 
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
             %CMWS_MODEL Construct an instance of this class
-            %   Detailed explanation goes here
+            
             obj.folder = folder;
-            %Create a directory in 'folder' called
-            %CST_MicrowaveStudio_Files which is added to .gitignore
-            dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
-            mkdir(dirstring);
-            obj.folder = dirstring;
+            
             %Ensure file is .cst.
             [~,filename,~] = fileparts(filename);
             obj.filename = [filename,'.cst'];
+            
+            ff = fullfile(obj.folder,obj.filename);
+            
+            if exist(ff,'file') == 2
+                %If file exists, open 
+                [obj.CST,obj.mws] = CST_MicrowaveStudio.openFile(obj.folder,obj.filename);
+                
+            else %Create a new MWS session
+            %Create a directory in 'folder' called
+            %CST_MicrowaveStudio_Files which is added to .gitignore
+            dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
+            obj.folder = dirstring;
             obj.CST = actxserver('CSTStudio.application');
             obj.mws = obj.CST.invoke('NewMWS');
-           % obj.components = struct();
             
-            %Set default units
-%             units = invoke(obj.mws,'Units'); 
-%             invoke(units, 'Geometry','mm'); 
-%             invoke(units, 'Frequency','ghz'); 
-%             invoke(units, 'Time','s');
             obj.defineUnits;
-
-
-            %Setup Solver
-%             solver = invoke(obj.mws,'Solver');
-%             solver.invoke('FrequencyRange','11','13'); %Update to allow user to set
             obj.setFreq(11,13);
             
             %Boundaries:
@@ -116,6 +118,20 @@ classdef CST_MicrowaveStudio < handle
                             ]);
             
             obj.mws.invoke('AddToHistory','Set Background Material',VBA);
+            end
+        end
+        function save(obj)
+            if ~exist(obj.folder,'file') == 7
+               makedir(obj.folder); 
+            end
+            obj.mws.invoke('saveas',fullfile(obj.folder,obj.filename),'false');
+        end
+        function quit(obj,type)
+            if strcmp(type,'all') % Close the application
+                obj.CST.invoke('quit')
+            else % Close the MWS project
+               obj.mws.invoke('quit')
+            end
         end
         function defineUnits(obj)
             
@@ -195,7 +211,7 @@ classdef CST_MicrowaveStudio < handle
                              name,Eps(1),Eps(2),Eps(3),Mue(1),Mue(2),Mue(3),C(1),C(2),C(3));
             obj.mws.invoke('AddToHistory',['define material: ',name],VBA);
         end
-        function addDiscretePort(obj,X,Y,Z,R,impedance)
+        function addDiscretePort(obj,X,Y,Z,R,impedance,portNumber)
             %Add a discrete line source in the positions defined by the X, Y and Z
             %inputs, with radius, R, and impedance defined by the other
             %input arguments
@@ -210,6 +226,13 @@ classdef CST_MicrowaveStudio < handle
                 impedance = 50;
             end
             
+            %This avoids conflicts when adding new ports - we could (should?) get
+            %next available port number interactively from the MWS file 
+            if nargin < 7
+                portNumber = obj.ports + 1; 
+            end
+            
+            
             VBA =  sprintf(['With DiscretePort\n',...
                                 '.Reset\n',...
                                 '.Type "SParameter"\n',...
@@ -220,10 +243,11 @@ classdef CST_MicrowaveStudio < handle
                                 '.Radius "%f"\n',...
                                 '.Create\n',...
                              'End With'],...
-                             obj.ports+1, X(1),Y(1),Z(1),X(2),Y(2),Z(2),impedance,R);
+                             portNumber, X(1),Y(1),Z(1),X(2),Y(2),Z(2),impedance,R);
              
              obj.mws.invoke('AddToHistory',['define discrete port: ',num2str(obj.ports+1)],VBA);
-             obj.ports = obj.ports + 1;
+             
+             obj.ports = obj.ports + 1; %Should this be obtained from the MWS file?
         end
         function addFieldMonitor(obj,fieldType,freq)
             % Add a field monitor at specified frequency
@@ -346,7 +370,11 @@ classdef CST_MicrowaveStudio < handle
             end
         end
         function rotateObject(obj,componentName,objectName,rotationAngles,rotationCenter,copy,repetitions)
-            
+            % Rotate an object in located in one of the components
+            % 
+            % 
+            % 
+            % Currently not possible to rotate ports, faces, curves etc...
             nameStr = [componentName,':',objectName];
             if nargin < 6
                 copy = 'False';
@@ -484,9 +512,7 @@ classdef CST_MicrowaveStudio < handle
         function setFreq(obj,F1,F2)
            obj.mws.invoke('AddToHistory','Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2)); 
         end
-        function save(obj)
-            obj.mws.invoke('saveas',fullfile(obj.folder,obj.filename),'false');
-        end
+
         function setSolver(obj,solver)
             switch lower(solver)
                 case {'frequency','f','freq'}
@@ -583,6 +609,14 @@ classdef CST_MicrowaveStudio < handle
                     rethrow(err);
                 end
             end
+        end
+    end
+    methods (Static)
+        function [CST,mws] = openFile(folder,filename)
+            
+            CST = actxserver('CSTStudio.application');
+            mws = CST.invoke('OpenFile',fullfile(folder,filename));
+            
         end
     end
 end

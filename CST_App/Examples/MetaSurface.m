@@ -37,6 +37,8 @@ end
 CST.setFreq(9, 11);
 CST.save;
 
+%%
+CST.runSimulation
 [freq,S,SType] = CST.getSParameters;
 
 ax = axes('parent',figure('Position',[680 576 780 402]));
