@@ -1,0 +1,5 @@
+# Ignore all .cst files
+*.cst
+
+#Ignore all folders other than /Examples and /Functions
+CST_MicrowaveStudio_Files/
