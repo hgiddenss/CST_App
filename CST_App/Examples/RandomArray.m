@@ -1,3 +1,5 @@
+% Copyright Henry Giddens, 2018
+
 %Generate a number of normally distributed randomly positioned scatterers
 nScatter = 300;
 R = randn(nScatter,3);

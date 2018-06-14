@@ -1,8 +1,10 @@
+% Copyright Henry Giddens, 2018
+
 %Generate a pixelated metasurface where metal is represented by 1. Place
 %the array on an FR-4 substrate with thickness of 0.8mm, use floguet boundaries in the x and y
 %directions. Select the frequency fomain solver:
 
-%First generate the pattern with size nPix-x-nPix
+%First generate the random pattern with size nPix-x-nPix
 nPix = 10;
 pixels = logical(randi(2,nPix)-1);
 
@@ -11,9 +13,12 @@ subHeight = 0.8;
 
 [x,y] = meshgrid(0:unitCellSize/nPix:unitCellSize,0:unitCellSize/nPix:unitCellSize);
 
+%Build CST Model
 CST = CST_MicrowaveStudio(cd,'MetaSurface');
 CST.setSolver('frequency');
 CST.setBoundaryCondition('xmin','unit cell','xmax','unit cell','ymin','unit cell','ymax','unit cell')
+%define the first 2 modes of the floquet port
+CST.defineFloquetModes(2)
 CST.setFreq(9, 11);
 
 CST.addNormalMaterial('FR4',4.3,1,[0.8 0.8 0.3]);
@@ -37,8 +42,10 @@ end
 CST.setFreq(9, 11);
 CST.save;
 
-%%
+%Run the simulation
 CST.runSimulation
+
+%Retrieve the SParameters and Plot in CST
 [freq,S,SType] = CST.getSParameters;
 
 ax = axes('parent',figure('Position',[680 576 780 402]));

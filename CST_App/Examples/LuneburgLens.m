@@ -1,3 +1,5 @@
+% Copyright Henry Giddens, 2018
+
 %Build and add a luneburg lens decritized into 10 layers into a cst file:
 
 %Define descritized cylinders (default units is in mm):

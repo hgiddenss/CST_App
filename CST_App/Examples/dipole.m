@@ -1,4 +1,6 @@
-%Simulate a Z-directed line source and retrieve the radiation pattern:
+% Copyright Henry Giddens, 2018
+
+%Simulate a Z-directed line source, retrieve the radiation pattern and plot it in Matlab
 
 CST = CST_MicrowaveStudio(cd,'dipole');
 

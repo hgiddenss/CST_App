@@ -24,7 +24,7 @@ classdef CST_MicrowaveStudio < handle
     %   defineUnits
     %   setFreq
     %   setSolver
-    %   setBoundaryConditions
+    %   setBoundaryCondition
     %   addFieldMonitor
     %   setBackgroundLimits
     %   addSymmetryPlane
@@ -325,12 +325,26 @@ classdef CST_MicrowaveStudio < handle
         end
         function addFieldMonitor(obj,fieldType,freq)
             % Add a field monitor at specified frequency
+            % Field type can be one of the following strings:
+            % 'Efield', 'Hfield', 'Surfacecurrent', 'Powerflow', 'Current', 
+            % 'Powerloss', 'Eenergy', 'Elossdens', 'Lossdens', 'Henergy', 
+            % 'Farfield', 'Temperature', 'Fieldsource', 'Spacecharge', 
+            % 'ParticleCurrentDensity' or 'Electrondensity'.
             % Examples:
             % CST = CST_MicrowaveStudio(cd,'test');
             % CST.AddMonitor('Efield',2.4);
             % CST.AddMonitor('farfield',10);
             
-            name = [fieldType,' (f=',num2str(freq),')'];
+            %Try to implment default CST naming strings
+            switch lower(fieldType)
+                case 'efield'
+                    name = ['e-field',' (f=',num2str(freq),')'];
+                case 'hfield'
+                    name = ['h-field',' (f=',num2str(freq),')'];
+                otherwise
+                    name = [fieldType,' (f=',num2str(freq),')'];
+            end 
+            
             
             VBA =  sprintf(['With Monitor\n',...
                                 '.Reset\n',...
