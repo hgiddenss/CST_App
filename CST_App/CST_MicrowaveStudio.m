@@ -615,7 +615,7 @@ classdef CST_MicrowaveStudio < handle
             obj.mws.invoke('AddToHistory','change solver type',VBA);
             
         end
-        function defineFloquetModes(nModes)
+        function defineFloquetModes(obj,nModes)
             
            VBA = sprintf(['With FloquetPort\n',...
                                 '.Reset\n',...
@@ -819,11 +819,28 @@ classdef CST_MicrowaveStudio < handle
             end
             
             ff.invoke('CalculateList','');
-            theta_am = ff.invoke('GetList','Spherical linear theta abs');
-            theta_ph = ff.invoke('GetList','Spherical linear theta phase');
-            phi_am = ff.invoke('GetList','Spherical linear phi abs');
-            phi_ph = ff.invoke('GetList','Spherical linear phi phase');
-            Eabs = ff.invoke('GetList','Spherical abs');
+            %These take quite a long time. We could speed things up by
+            %allowing user to specify which data they want - if only EAbs
+            %is required then it will be 5x quicker.
+            %
+            %As a temporary way to speed up data output, use nargout to
+            %determine which patterns user has asked for...
+            %
+            if nargout < 2
+                Eabs = ff.invoke('GetList','Spherical abs');
+            end
+            if nargout < 3
+                theta_am = ff.invoke('GetList','Spherical linear theta abs');
+            end
+            if nargout < 4
+                phi_am = ff.invoke('GetList','Spherical linear phi abs');
+            end
+            if nargout < 5
+                theta_ph = ff.invoke('GetList','Spherical linear theta phase');
+            end
+            if nargout == 5
+                phi_ph = ff.invoke('GetList','Spherical linear phi phase');
+            end
             %position_theta = ff.invoke('GetList','Point_T');
             %position_phi   = ff.invoke('GetList','Point_P');
             
@@ -836,10 +853,7 @@ classdef CST_MicrowaveStudio < handle
             Ephi_ph = reshape(phi_ph,nTheta,nPhi);
             Eabs = reshape(Eabs,nTheta,nPhi);
             
-            Etheta = theta_am.*exp(1i*deg2rad(theta_ph));
-            Ephi = phi_am.*exp(1i*deg2rad(phi_ph));
         end
-        
         
     end
     methods (Static)

@@ -36,8 +36,8 @@ ylabel('theta');
 Eabs(Eabs < -40) = -40;
 Eabs1 = Eabs+40; %Make all positive as this is used as the radius
 
-p = deg2rad(0:5:360);
-t = deg2rad(90:-5:-90);
+p = deg2rad(0:1:360);
+t = deg2rad(90:-1:-90);
 [p,t] = meshgrid(p,t);
 [X,Y,Z] = sph2cart(p,t,Eabs1);
 
