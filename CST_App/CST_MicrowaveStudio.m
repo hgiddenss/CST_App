@@ -42,6 +42,7 @@ classdef CST_MicrowaveStudio < handle
     %
     %   Result Methods:
     %   getSParameters
+    %   getFarfield
     %   
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
@@ -790,18 +791,23 @@ classdef CST_MicrowaveStudio < handle
             p = inputParser;
             p.addParameter('ffid',[])
             p.addParameter('units','directivity')
+            
+            %The [1] in ffid below is actually related to the 'simulation identifier' but most commonly refers to the port number, port 1 is most common
+            p.addParameter('SimID',1) %This is ignored if the ffid string is input as an argument
+            
+            
             p.parse(varargin{:});
             
             ffid = p.Results.ffid;
             units = p.Results.units;
+            SimID = p.Results.SimID;
             
             if isempty(ffid)
-                ffid = ['farfield (f=',num2str(freq),') [1]'];
+                ffid = ['farfield (f=',num2str(freq),') [',num2str(SimID),']']; %e.g. "farfield (f=2.4)[1]"
             end
             
             if ~obj.mws.invoke('SelectTreeItem',['Farfields\',ffid])
-               warning('Farfield result does not exist!')
-               return
+               error('Farfield result does not exist!')
             end
             
             
@@ -825,36 +831,283 @@ classdef CST_MicrowaveStudio < handle
             %
             %As a temporary way to speed up data output, use nargout to
             %determine which patterns user has asked for...
-            %
-            if nargout < 2
-                Eabs = ff.invoke('GetList','Spherical abs');
-            end
-            if nargout < 3
-                theta_am = ff.invoke('GetList','Spherical linear theta abs');
-            end
-            if nargout < 4
-                phi_am = ff.invoke('GetList','Spherical linear phi abs');
-            end
-            if nargout < 5
-                theta_ph = ff.invoke('GetList','Spherical linear theta phase');
-            end
-            if nargout == 5
-                phi_ph = ff.invoke('GetList','Spherical linear phi phase');
-            end
-            %position_theta = ff.invoke('GetList','Point_T');
-            %position_phi   = ff.invoke('GetList','Point_P');
             
             nTheta = numel(theta);
             nPhi = numel(phi);
             
-            Etheta_am = reshape(theta_am,nTheta,nPhi);
-            Etheta_ph = reshape(theta_ph,nTheta,nPhi);
-            Ephi_am = reshape(phi_am,nTheta,nPhi);
-            Ephi_ph = reshape(phi_ph,nTheta,nPhi);
-            Eabs = reshape(Eabs,nTheta,nPhi);
+            if nargout >= 1
+                Eabs = ff.invoke('GetList','Spherical abs');
+                Eabs = reshape(Eabs,nTheta,nPhi);
+            end
+            if nargout >= 2
+                theta_am = ff.invoke('GetList','Spherical linear theta abs');
+                Etheta_am = reshape(theta_am,nTheta,nPhi);
+            end
+            if nargout >= 3
+                phi_am = ff.invoke('GetList','Spherical linear phi abs');
+                Ephi_am = reshape(phi_am,nTheta,nPhi);
+            end
+            if nargout >= 4
+                theta_ph = ff.invoke('GetList','Spherical linear theta phase');
+                Etheta_ph = reshape(theta_ph,nTheta,nPhi);
+            end
+            if nargout >= 5
+                phi_ph = ff.invoke('GetList','Spherical linear phi phase');
+                Ephi_ph = reshape(phi_ph,nTheta,nPhi);
+            end
+            %position_theta = ff.invoke('GetList','Point_T');
+            %position_phi   = ff.invoke('GetList','Point_P');
             
         end
+       % function [nX,nY,nZ] = getMeshPoints(obj)
+       %     
+       %     mesh = obj.mws.invoke('Mesh');
+       %     
+       % end
         
+        function [outputField,XPos,YPos,ZPos] = getEFieldVector(obj,freq,fieldComponent,plane,location,varargin)
+            % [This function is not finalized and may change in a future
+            % version. Follow the examples for information on how to use
+            % the function correctly. There are currently quite a few bugs.
+            % For example, you can only retreive the fields correctly in
+            % all planes when open (PML) boundary conditions are applied in
+            % all directions! This works for resutls from the Time Domain
+            % solver only!] 
+            %
+            % Get the Electric field strength and phase for a particular
+            % component (Ex, Ey, Ez, or E_Abs) on a single plane (XY, XZ or YZ) at a
+            % specified location in the simulation space. This is currently
+            % limited to Electric Field only but will be updated to include
+            % the opttion to specify H-field/Surface currents in future
+            % 
+            % The location refers to the index of the mesh cell in the
+            % specified plane. e.g. a 'location' = 0 in the 'XY' will
+            % return the field at the first z point in the simulation
+            % space. If the 'location' is negative, the field at the halfway
+            % point in the specified plane will be returned
+            %
+            % Examples:
+            % %Get the absolute Electric field value from a monitor at 2.5
+            % %GHz in the yz plane at the 10th mesh cell along the x axis
+            % [Efield_abs,x,y,z] = CST.getEFieldVector(2.5,'abs','yz',10);
+            % 
+            % Get Ez directed field at the middle mesh cell in the xy plane
+            % [Ez,x,y,z] = CST.getEFieldVector(2.5,'Ez','xy',-1);
+            %
+            % See Examples\dipole for working examples
+            %
+            % NOTE: There are currently problems specifying the field
+            % identifiers when simulation has been run with the frequency
+            % domain solver, due to the way CST names the result files.
+            % Furthermore, you cannot just retrieve the field from a plane
+            % as tetrahedral meshing does not automatically just mesh a
+            % single plane like the time domain hexahedral mesh. It will
+            % probably be easier to save the fields using one of CSTs
+            % readily available macros over the given plane, and then
+            % import into matlab seperately
+            %
+            
+            if strcmp(obj.solver,'f')
+                warning('This function is currently not available for results from the frequency domain solver');
+                return
+            end
+            
+            p = inputParser;
+            p.addParameter('ffid',[])
+            %The [1] in SimID below is actually related to the 'simulation
+            %identifier'. It most commonly refers to the port number, port
+            %1 is most common. It can be found by looking at the
+            %information in the square brackets after the field monitor
+            %results in CST
+            p.addParameter('SimID',1) %This is ignored if the ffid string is input as an argument
+            
+            p.parse(varargin{:});
+            
+            field_id = p.Results.ffid;
+            SimID = p.Results.SimID;
+            
+            if isempty(field_id)
+                %Update this for specified field type (E/H)
+                field_id = ['^e-field (f=',num2str(freq),')_',num2str(SimID),'']; %e.g. "farfield (f=2.4)[1]"
+                %A better solution would be to search through the available
+                %.m3d files for any matching the frequency/sim id
+                
+            else
+                field_id = ['^',field_id];
+            end
+            
+            %For Future Info:
+            %If the tetrahedral mesh is used, the field_id uses a different
+            %string and different type of file with a string like this:
+            % 'e-field (#0001)_1(1).m3t'
+            %There appear to be some .m3m files which contain the field_id
+            %filenames similar to the transient solver results as above,
+            %which may contain the information
+            
+            
+            try
+                fieldObject = obj.mws.invoke('Result3D',field_id);
+            catch
+                try
+                    %Sometimes there is a ',1' at the end of the file
+                    %name...
+                    fieldObject = obj.mws.invoke('Result3D',[field_id,',1']);
+                catch
+                    error('Farfield result does not exist!')
+                end
+            end
+            %The 'get' methods are indexed using the following equation:
+            % index = ix + iy*nx + iz*nx*ny < .GetLength = nx*ny*nz
+            
+            nX = fieldObject.invoke('GetNx');
+            nY = fieldObject.invoke('GetNy');
+            nZ = fieldObject.invoke('GetNz');
+            
+            switch lower(plane)
+                case 'xy'
+                    ix = 0:nX-1;
+                    iy = 0:nY-1;
+                    iy = (iy*nX)';
+                    index = iy+ix;
+                    if location < 0
+                        index = index+(round(nZ/2)-1)*nX*nY;
+                    elseif location > nZ
+                        warning('The specified Z location of the xy plane is larger than the number of z-plane mesh cells');
+                    else
+                        location = round(location);
+                        index = index+location*nX*nY;
+                    end 
+                    nI = nX;
+                    nJ = nY;
+                case 'xz'
+                    ix = 0:nX-1;
+                    iz = 0:nZ-1;
+                    iz = (iz*nX*nY)';
+                    index = iz+ix;
+                    if location < 0
+                        index = index+(round(nY/2)-1)*nY;
+                    elseif location > nY
+                        warning('The specified Y location of the xz plane is larger than the number of y-plane mesh cells');
+                    else
+                        location = round(location);
+                        index = index+location*nY;
+                    end 
+                    nI = nX;
+                    nJ = nZ;
+                case 'yz'
+                    iy = 0:nY-1;
+                    iy = (iy*nX);
+                    iz = 0:nZ-1;
+                    iz = (iz*nX*nY)';
+                    
+                    index = iz+iy;
+                    if location < 0
+                        index = index+(round(nX/2)-1);
+                    elseif location > nX
+                        warning('The specified x location of the yz plane is larger than the number of x-plane mesh cells');
+                    else
+                        location = round(location);
+                        index = index+location; %is this correct?
+                    end 
+                    nI = nY;
+                    nJ = nZ;
+            end
+            
+            %there are a few ways to return the field values, but i dont
+            %know the quickest way yet...
+%             re = zeros(numel(index),1);
+%             im = zeros(numel(index),1);
+%             
+%             for iField = 1:numel(index)
+%                 re(iField) = fieldObject.invoke('GetXRe',index(iField));
+%                 im(iField) = fieldObject.invoke('GetXIm',index(iField));
+%             end
+            
+            switch lower(fieldComponent)
+                case {'ex','x'}
+                    re =  fieldObject.invoke('GetArray','xre');
+                    im =  fieldObject.invoke('GetArray','xim');
+                case {'ey','y'}
+                    re =  fieldObject.invoke('GetArray','yre');
+                    im =  fieldObject.invoke('GetArray','yim');
+                case {'ez','z'} 
+                    re =  fieldObject.invoke('GetArray','zre');
+                    im =  fieldObject.invoke('GetArray','zim');
+                case {'abs'}   %This is a problem when using closed boundaries!
+                    reX =  fieldObject.invoke('GetArray','xre');
+                    imX =  fieldObject.invoke('GetArray','xim');
+                    reY =  fieldObject.invoke('GetArray','yre');
+                    imY =  fieldObject.invoke('GetArray','yim');
+                    reZ =  fieldObject.invoke('GetArray','zre');
+                    imZ =  fieldObject.invoke('GetArray','zim');
+                    
+                    Ex = reX + 1i*imX;
+                    Ey = reY + 1i*imY;
+                    Ez = reZ + 1i*imZ;
+                    
+                    if numel(Ex) ~= numel(Ey) || numel(Ex) ~= numel(Ez)
+                        error("The different components of the E-field vectors appear to have a different number"...
+                            + " of elements. This has not been accounted for and results in an error")
+                    end
+                    
+                    re = (abs(Ex) + abs(Ey) + abs(Ez));
+                    im = zeros(size(re));
+            end
+            
+            re = re(index+1);
+            im = im(index+1);
+            
+            outputField = re+1i*im;
+            
+            
+            %Retrieve the actual XY,/XZ/YZ meshgrid coordinates so the
+            %field can be plotted to scale
+            %This takes quite a long time, especially for a large mesh, and
+            %there may be a better way to implement it, but i havent found
+            %one yet... 
+            mesh = obj.mws.invoke('Mesh');
+            switch lower(plane)
+                case {'xy'}
+                    XPos = zeros(1,nX);
+                    YPos = zeros(nY,1);
+                    
+                    for i = 1:nX
+                        idx = index( (i-1)*nY + 1 );
+                        XPos(i) = mesh.invoke('GetXPos',idx);
+                    end
+                    for i = 1:nY
+                        YPos(i) = mesh.invoke('GetYPos',index(i));
+                    end
+                    
+                    ZPos = mesh.invoke('GetZPos',index(1));
+                case {'xz'}
+                    XPos = zeros(1,nX);
+                    ZPos = zeros(nZ,1);
+                    
+                    for i = 1:nX
+                        idx = index( (i-1)*nZ + 1 );
+                        XPos(i) = mesh.invoke('GetXPos',idx);
+                    end
+                    for i = 1:nZ
+                        ZPos(i) = mesh.invoke('GetZPos',index(i));
+                    end
+                    
+                    YPos = mesh.invoke('GetYPos',index(1));
+                case {'yz'} 
+                    YPos = zeros(1,nY);
+                    ZPos = zeros(nZ,1);
+                    
+                    for i = 1:nY
+                        idx = index( (i-1)*nZ + 1 );
+                        YPos(i) = mesh.invoke('GetYPos',idx);
+                    end
+                    for i = 1:nZ
+                        ZPos(i) = mesh.invoke('GetZPos',index(i));
+                    end
+                    XPos = mesh.invoke('GetXPos',index(1));
+            end
+            
+        end
     end
     methods (Static)
         function [CST,mws] = openFile(folder,filename)
