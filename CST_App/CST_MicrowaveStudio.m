@@ -11,15 +11,15 @@ classdef CST_MicrowaveStudio < handle
     %   
     %   -----Methods Overview-----
     %
-    %   Class Creator:
+    %   --Class Creator--
     %   CST_MicrowaveStudio
     %
-    %   File Methods:
+    %   --File Methods--
     %   save
     %   quit
     %   openFile (Static)
     %
-    %   Simulation Methods:
+    %   --Simulation Methods--
     %   addDiscretePort   
     %   defineUnits
     %   setFreq
@@ -31,7 +31,7 @@ classdef CST_MicrowaveStudio < handle
     %   defineFloquetModes
     %   runSimulation
     %
-    %   Build Methods:
+    %   --Build Methods--
     %   addNormalMaterial
     %   addAnisotropicMaterial
     %   addBrick
@@ -40,9 +40,11 @@ classdef CST_MicrowaveStudio < handle
     %   addSphere
     %   rotateObject
     %
-    %   Result Methods:
+    %   --Result Methods--
     %   getSParameters
     %   getFarfield
+    %   getEFieldVector
+    %   getMeshInfo
     %   
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
@@ -51,11 +53,11 @@ classdef CST_MicrowaveStudio < handle
     %   the same VBA format below and calling:
     %   CST_MicrowaveStudioHandle.mws.invoke('AddToHistory','Action String identifier',VBA])
     %
-    %   See Also: actxserver, addGradedIndexMaterialCST
+    %   See Also: actxserver, addGradedIndexMaterialCST, CST_App\Examples
     %
     %   Copyright: Henry Giddens 2018, Antennas and Electromagnetics
     %   Group, Queen Mary University London, 2018 (For further help,
-    %   requests, and bug fixes contact h.giddens@qmul.ac.uk) 
+    %   functionality requests, and bug fixes contact h.giddens@qmul.ac.uk) 
     
     properties
         CST       % Handle to CST through actxserver
@@ -66,21 +68,35 @@ classdef CST_MicrowaveStudio < handle
     properties (Hidden)
         ports = 0;
         solver = 't';
+        listeners
+    end
+    properties (Hidden, SetObservable) %For future use
+        F1 = []
+        F2 = []
     end
     properties (Access = private)
-       version = 1.0; 
+       version = '1.1.2'; 
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
-            %CMWS_MODEL Construct an instance of this class which will be
-            %saved in the specified folder with the specified filename. If
-            %the '.cst' file already exists, the existing project will  be
-            %opened. 
+            %CST_MicrowaveStudio   Construct an instance of this class
+            %which will be saved in the specified folder with the specified
+            %filename. If the '.cst' file already exists, the existing
+            %project will  be opened. If the file is already open in CST,
+            %the handles to the correct CST handles should be returned
+            %
+            %
             
             obj.folder = folder;
             
-            %Ensure file is .cst.
-            [~,filename,~] = fileparts(filename);
+            %Ensure file has .cst extension.
+            [~,filename,ext] = fileparts(filename);
+            
+            if ~isempty(ext)
+                if ~strcmpi('.cst',ext)
+                    error('CST_MicrowaveStudio:wrongFileExtension','File extension must be .CST')
+                end
+            end
             obj.filename = [filename,'.cst'];
             
             ff = fullfile(obj.folder,obj.filename);
@@ -97,6 +113,15 @@ classdef CST_MicrowaveStudio < handle
             obj.CST = actxserver('CSTStudio.application');
             obj.mws = obj.CST.invoke('NewMWS');
             
+            
+            % For Future Version - allow user to store some values as
+            % object properties, such as the frequency, which update in the
+            % MWS model whenever they are updated in Matlab
+            % obj.listeners = addlistener(obj,{'F1','F2'},'PreSet',@obj.setFreqListenerResp);
+            
+            
+            
+            %Set up some default simulation parameters:
             obj.defineUnits;
             obj.setFreq(11,13);
             
@@ -136,20 +161,61 @@ classdef CST_MicrowaveStudio < handle
                obj.mws.invoke('quit')
             end
         end
-        function defineUnits(obj)
+        function defineUnits(obj,varargin)
+            %defineUnits(Parameter,value) - Define the units used in the CST_MicrowaveStudio
+            %simulation. The default parameters and units arelisted below.
+            %Any wrong arguments for value will currently resutl in a CST
+            %error, and wont be picked up by matlab, so be careful! If a
+            %particular parameter isnt set, it will be reset to its default
+            %value as specified below
+            % 
+            % --Parameter--          --Value-- (default) in parenthesis
+            %   Geometry             'm' 'cm' ('mm') 'um' 'nm' 'ft' 'mil' 'in' 
+            %   Frequency            'Hz' 'kHz' 'MHz' 'GHz' 'THz' 'pHz'
+            %   Time                 ('s') 'ms' 'us' 'ns' 'ps' 'fs'
+            %   Temperature          ('Kelvin') 'Celsius' 'Farenheit'
+            %   Voltage              ('V') % These 6 values apear to be fixed in microwave studio, so cannot be changed here either 
+            %   Current              ('A') %
+            %   Resistance           ('Ohm') %
+            %   Conductance          ('Siemens') %
+            %   Capacitance          ('PikoF') %
+            %   Inductance           ('NanoH') %
+            %
+            % Example:
+            % CST.defineUnits('Frequency','THz','Geometery','nm');
+            
+            %Should these eventually be stored as class properties, or
+            %persistant variable, else you have to define all units every
+            %time they are changed or else the defaults below will be reset?
+            
+            p = inputParser;
+            p.addParameter('Geometry','mm');
+            p.addParameter('Frequency','GHz');
+            p.addParameter('Time','S');
+            p.addParameter('Temperature','Kelvin');
+            p.addParameter('Votlage','V');
+            p.addParameter('Current','A');
+            p.addParameter('Resistance','Ohm');
+            p.addParameter('Conductance','Siemens');
+            p.addParameter('Capacitance','PiKoF');
+            p.addParameter('Inductance','NanoH');
+            
+            p.parse(varargin{:});
+            [geom,freq,time,temp] = deal(p.Results.Geometry,...
+                p.Results.Frequency,p.Results.Time,p.Results.Temperature);
             
             VBA = sprintf(['With Units\n',...
-                            '.Geometry "mm"\n',...
-                            '.Frequency "GHz"\n',...
-                            '.Time "s"\n',...
-                            '.TemperatureUnit "Kelvin"\n',...
+                            '.Geometry "%s"\n',...
+                            '.Frequency "%s"\n',...
+                            '.Time "%s"\n',...
+                            '.TemperatureUnit "%s"\n',...
                             '.Voltage "V"\n',...
                             '.Current "A"\n',...
                             '.Resistance "Ohm"\n',...
                             '.Conductance "Siemens"\n',...
                             '.Capacitance "PikoF"\n',...
                             '.Inductance "NanoH"\n',...
-                        'End With' ]);
+                        'End With' ],geom,freq,time,temp);
         obj.mws.invoke('AddToHistory','Set Units',VBA);
             
         end 
@@ -602,6 +668,8 @@ classdef CST_MicrowaveStudio < handle
         end
         function setFreq(obj,F1,F2)
            obj.mws.invoke('AddToHistory','Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2)); 
+           obj.F1 = F1;
+           obj.F2 = F2;
         end
 
         function setSolver(obj,solver)
@@ -609,7 +677,7 @@ classdef CST_MicrowaveStudio < handle
                 case {'frequency','f','freq'}
                     VBA = 'ChangeSolverType "HF Frequency Domain"';
                     obj.solver = 'f';
-                case {'time','time domain','td'}
+                case {'time','time domain','td','t'}
                     VBA = 'ChangeSolverType "HF Time Domain" ';
                     obj.solver = 't';
             end
@@ -859,11 +927,48 @@ classdef CST_MicrowaveStudio < handle
             %position_phi   = ff.invoke('GetList','Point_P');
             
         end
-       % function [nX,nY,nZ] = getMeshPoints(obj)
-       %     
-       %     mesh = obj.mws.invoke('Mesh');
-       %     
-       % end
+        function [meshOut] = getMeshInfo(obj) 
+            if obj.solver == "f"
+                error('CST_MicrowaveStudio:getMeshPoints:SolverTypeError',...
+                    'This function is currently not available for results from the frequency domain solver');
+            end
+            
+            mesh = obj.mws.invoke('Mesh');
+            nP = mesh.invoke('GetNP');
+            
+            X = zeros(nP,1);
+            Y = zeros(nP,1);
+            % If we just try to get every mesh point for each axis, it can
+            % take a very long time. If we loop through X until it repeates
+            % then we know nX. We can then loop through nY and nZ:
+            % index = ix + iy*nx + iz*nx*ny < .GetLength = nx*ny*nz
+            for i = 1:nP
+                X(i) = mesh.invoke('GetXPos',i-1); %Mesh in CST is zero-indexed
+                if X(i) == X(1) && i~= 1
+                    X = X(1:i-1);
+                    break
+                end
+            end
+            nX = numel(X);
+            for i = 1:nP
+                idx = (i-1)*nX;
+                Y(i) = mesh.invoke('GetYPos',idx); 
+                if Y(i) == Y(1) && i~= 1
+                    Y = Y(1:i-1);
+                    break
+                end
+            end
+            nY = numel(Y);
+            nZ = nP/nX/nY;
+            Z = zeros(nZ,1);
+            for i = 1:nZ
+                idx = (i-1)*nX*nY;
+                Z(i) = mesh.invoke('GetZPos',idx); 
+            end
+            
+            meshOut = struct('X',X,'Y',Y,'Z',Z,'nX',nX,'nY',nY,'nZ',nZ,'meshPoints',nP);
+            
+        end
         
         function [outputField,XPos,YPos,ZPos] = getEFieldVector(obj,freq,fieldComponent,plane,location,varargin)
             % [This function is not finalized and may change in a future
@@ -907,9 +1012,9 @@ classdef CST_MicrowaveStudio < handle
             % import into matlab seperately
             %
             
-            if strcmp(obj.solver,'f')
-                warning('This function is currently not available for results from the frequency domain solver');
-                return
+            if obj.solver == "f"
+                error('CST_MicrowaveStudio:getEfieldVector:SolverTypeError',...
+                    'This function is currently not available for results from the frequency domain solver');
             end
             
             p = inputParser;
@@ -977,8 +1082,6 @@ classdef CST_MicrowaveStudio < handle
                         location = round(location);
                         index = index+location*nX*nY;
                     end 
-                    nI = nX;
-                    nJ = nY;
                 case 'xz'
                     ix = 0:nX-1;
                     iz = 0:nZ-1;
@@ -992,8 +1095,6 @@ classdef CST_MicrowaveStudio < handle
                         location = round(location);
                         index = index+location*nY;
                     end 
-                    nI = nX;
-                    nJ = nZ;
                 case 'yz'
                     iy = 0:nY-1;
                     iy = (iy*nX);
@@ -1009,8 +1110,6 @@ classdef CST_MicrowaveStudio < handle
                         location = round(location);
                         index = index+location; %is this correct?
                     end 
-                    nI = nY;
-                    nJ = nZ;
             end
             
             %there are a few ways to return the field values, but i dont
@@ -1066,6 +1165,7 @@ classdef CST_MicrowaveStudio < handle
             %there may be a better way to implement it, but i havent found
             %one yet... 
             mesh = obj.mws.invoke('Mesh');
+            fprintf('Retrieving Mesh Coordinates...\n');
             switch lower(plane)
                 case {'xy'}
                     XPos = zeros(1,nX);
@@ -1106,15 +1206,14 @@ classdef CST_MicrowaveStudio < handle
                     end
                     XPos = mesh.invoke('GetXPos',index(1));
             end
-            
         end
     end
     methods (Static)
         function [CST,mws] = openFile(folder,filename)
             
             CST = actxserver('CSTStudio.application');
-            mws = CST.invoke('OpenFile',fullfile(folder,filename));
-            
+            CST.invoke('OpenFile',fullfile(folder,filename));
+            mws = CST.Active3D;
         end
     end
 end

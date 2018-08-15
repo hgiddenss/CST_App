@@ -1,7 +1,11 @@
 % Copyright Henry Giddens, 2018
 
-%Simulate a Z-directed line source, retrieve the radiation pattern and plot it in Matlab
+% Simulate a Z-directed line source
+% Retrieve the farfield radiation pattern and plot it in Matlab
+% Retrieve the electric field along different X, Y and Z planes, and plot
+% in different Axes.
 
+%% Setup Simulation
 CST = CST_MicrowaveStudio(cd,'dipole');
 
 CST.setFreq(2,3);
@@ -17,6 +21,7 @@ CST.addFieldMonitor('farfield',2.5)
 CST.addFieldMonitor('efield',2.5)
 CST.runSimulation;
 
+%% Retrieve the Farfield and plot
 theta = 0:5:180;
 phi = 0:5:360;
 
@@ -52,10 +57,13 @@ colorbar
 
 fprintf('\nMax Directivity = %.2f dBi\n\n',max(Eabs(:)));
 
-% Get the absolute electric field on the Z = 0 plnae. Plot the field at the
-% 4th Y cell along in the XZ plane, and the 10th in the YZ plane. 
+%% Get the absolute electric field on the Z = 0 plnae. Plot the field at the 4th Y cell along in the XZ plane, and the 10th in the YZ plane. 
 
-% You can also selecet Ex, Ey and Ez for complex values instead of 'abs'
+% You can also select Ex, Ey and Ez instead of 'abs' (complex values will
+% be returned)
+
+meshInfo = CST.getMeshInfo;
+display(meshInfo);
 
 hFig = figure;
 hFig.Position(3) = 1200;
@@ -101,3 +109,18 @@ axis equal;
 xlabel('Y (mm)');
 ylabel('Z (mm)');
 title("X = " + x + " mm");
+
+%% Plot the 3-Dimensional Mesh...
+
+[X,Y] = meshgrid(meshInfo.X,meshInfo.Y);
+
+ax = axes('parent',figure);
+hold on;
+for i = 1:meshInfo.nZ
+    m(i) = mesh(X,Y,ones(size(X))*meshInfo.Z(i),ones(size(X)),'FaceColor','none','EdgeAlpha',0.1);
+end
+
+[X,Z] = meshgrid(meshInfo.X,meshInfo.Z);
+for i = 1:meshInfo.nY
+    m1(i) = mesh(X,ones(size(X))*meshInfo.Y(i),Z,ones(size(X)),'FaceColor','none','EdgeAlpha',0.1);
+end
