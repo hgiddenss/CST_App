@@ -25,7 +25,7 @@ figure;
 surf(X,Y,Er)
 colormap(map)
 view([0 90])
-
+axis equal
 %Build in CST
 CST = CST_MicrowaveStudio(cd,'test.cst');
 
@@ -45,7 +45,7 @@ CST.addFieldMonitor('Efield',freq)
 CST.addFieldMonitor('farfield',freq)
 CST.setFreq(10*0.95,10*1.15);
 
-CST.setBoundaryConditions('xmin','open add space','xmax','open','ymin','open','ymax','open','zmin','electric','zmax','electric');
+CST.setBoundaryCondition('xmin','open add space','xmax','open','ymin','open','ymax','open','zmin','electric','zmax','electric');
 CST.addSymmetryPlane('z','electric')
 
 Xmin = min(min(X))-50;

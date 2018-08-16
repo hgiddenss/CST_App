@@ -69,8 +69,8 @@ hFig = figure;
 hFig.Position(3) = 1200;
 ax1 = subplot(1,3,1,'parent',hFig);
 
-[Efield_abs,x,y,z] = CST.getEFieldVector(2.5,'abs','xy',-1);
-s = surf(ax1,x,y,Efield_abs);
+[Efield_absZ,x,y,zPos] = CST.getEFieldVector(2.5,'abs','xy',27);
+s = surf(ax1,x,y,Efield_absZ);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
 view([0 90]);
@@ -80,11 +80,11 @@ ax1.CLim(1) = 0;
 axis equal;
 xlabel('X (mm)');
 ylabel('Y (mm)');
-title('Z = 0');
+title("Z = " + zPos + " mm");
 
 ax2 = subplot(1,3,2,'parent',hFig);
-[Efield_abs,x,y,z] = CST.getEFieldVector(2.5,'abs','xz',4);
-s = surf(ax2,x,z,Efield_abs);
+[Efield_absY,x,yPos,z] = CST.getEFieldVector(2.5,'abs','xz',4);
+s = surf(ax2,x,z,Efield_absY);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
 view([0 90]);
@@ -94,11 +94,11 @@ ax2.CLim(1) = 0;
 axis equal;
 xlabel('X (mm)');
 ylabel('Z (mm)');
-title("Y = " + y + " mm");
+title("Y = " + yPos + " mm");
 
 ax3 = subplot(1,3,3,'parent',hFig);
-[Efield_abs,x,y,z] = CST.getEFieldVector(2.5,'abs','yz',10);
-s = surf(ax3,y,z,Efield_abs);
+[Efield_absX,xPos,y,z] = CST.getEFieldVector(2.5,'abs','yz',10);
+s = surf(ax3,y,z,Efield_absX);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
 view([0 90]);
@@ -108,19 +108,23 @@ ax3.CLim(1) = 0;
 axis equal;
 xlabel('Y (mm)');
 ylabel('Z (mm)');
-title("X = " + x + " mm");
+title("X = " + xPos + " mm");
 
 %% Plot the 3-Dimensional Mesh...
 
-[X,Y] = meshgrid(meshInfo.X,meshInfo.Y);
 
 ax = axes('parent',figure);
 hold on;
-for i = 1:meshInfo.nZ
-    m(i) = mesh(X,Y,ones(size(X))*meshInfo.Z(i),ones(size(X)),'FaceColor','none','EdgeAlpha',0.1);
-end
+plot3Dmeshgrid(meshInfo.X,meshInfo.Y,meshInfo.Z,'FaceColor','none','EdgeAlpha',0.2,'EdgeColor',[0.2 0.7 0.2]);
+
+[X,Y] = meshgrid(meshInfo.X,meshInfo.Y);
+mesh(ax,X,Y,ones(size(Efield_absZ))*zPos,Efield_absZ,'FaceColor','interp');
 
 [X,Z] = meshgrid(meshInfo.X,meshInfo.Z);
-for i = 1:meshInfo.nY
-    m1(i) = mesh(X,ones(size(X))*meshInfo.Y(i),Z,ones(size(X)),'FaceColor','none','EdgeAlpha',0.1);
-end
+mesh(ax,X,ones(size(Efield_absY))*yPos,Z,Efield_absY,'FaceColor','interp');
+
+[Y,Z] = meshgrid(meshInfo.Y,meshInfo.Z);
+mesh(ax,ones(size(Efield_absX))*xPos,Y,Z,Efield_absX,'FaceColor','interp');
+
+%axis equal
+ax.CLim = [0 300];
