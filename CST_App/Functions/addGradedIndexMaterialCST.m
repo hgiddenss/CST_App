@@ -76,7 +76,7 @@ for i = 1:I-1
         if ~any(isnan([X(j,i), X(j,i+1), Y(j,i), Y(j+1,i), EpsilonMap(j,i)]))
             ii = ii+1;
             Xblock = [X(j,i) X(j,i+1)]*scaleFactor(1)/2;
-            Yblock = [Y(j,i) Y(j+1,i)]*scaleFactor(2)/2+Z;
+            Yblock = [Y(j,i) Y(j+1,i)]*scaleFactor(2)/2;
             Zblock = [-1 1]*scaleFactor(3)/2;
             name = ['Brick',num2str(ii)];
        % z_Av = (Z2(i,j) + Z2(i+1,j) + Z2(i,j+1) + Z2(i+1,j+1))/4;

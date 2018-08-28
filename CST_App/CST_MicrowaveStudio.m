@@ -19,6 +19,11 @@ classdef CST_MicrowaveStudio < handle
     %   quit
     %   openFile (Static)
     %
+    %   --Paremeter Methods
+    %   addParameter
+    %   changeParemeter
+    %   parameterUpdate
+    %
     %   --Simulation Methods--
     %   addDiscretePort
     %   defineUnits
@@ -156,12 +161,49 @@ classdef CST_MicrowaveStudio < handle
             end
             obj.mws.invoke('saveas',fullfile(obj.folder,obj.filename),'false');
         end
-        function quit(obj,type)
-            if strcmp(type,'all') % Close the application
-                obj.CST.invoke('quit')
-            else % Close the MWS project
-                obj.mws.invoke('quit')
+        function closeProject(obj)
+            obj.mws.invoke('quit');
+        end
+        function quit(obj)
+            % Close the application
+            obj.CST.invoke('quit');
+        end
+        function addParameter(obj,name,value)
+           %Add a new parameter to MWS project
+           
+           if obj.isParameter(name)
+               obj.changeParameterValue(obj,name,value)
+           else
+               obj.mws.invoke('StoreDoubleParameter',name,value);
+           end
+           
+        end
+        function changeParameterValue(obj,name,value)
+            %Add a new parameter to MWS project
+            
+            if ~obj.isParameter(name)
+                addParameter(obj,name,value)
+            else
+                obj.mws.invoke('StoreDoubleParameter',name,value);
+                obj.parameterUpdate;
             end
+        end
+        function parameterUpdate(obj)
+            %Update the history list
+            obj.mws.invoke('Rebuild');
+        end
+        function out = isParameter(obj,name)
+            %Check if a parameter exists
+            out = obj.mws.invoke('DoesParameterExist',name);
+        end
+        function val = getParameterValue(obj,name)
+            %Returns the value of the named parameter. val is returned
+            %empty if the parameter does not exist
+            val = [];
+            if obj.isParameter(name)
+                val = obj.mws.invoke('RestoreDoubleParameter',name);
+            end
+            
         end
         function defineUnits(obj,varargin)
             %defineUnits(Parameter,value) - Define the units used in the CST_MicrowaveStudio
@@ -253,12 +295,32 @@ classdef CST_MicrowaveStudio < handle
             end
         end
         function addNormalMaterial(obj,name,Eps,Mue,C)
+            %Add a new 'Normal' material to the CST project
+            
+            %Attempt to allow parametric assignment to Epsilon and Mue
+            if isnumeric(Eps)
+                Eps = num2str(Eps);
+            else
+                if ~obj.isParameter(Eps)
+                    error("CST:MicrowaveStudio:ParameterDoesntExist",...
+                        "Parameter "+ Eps +" does not exist. Please add it to the project before assigning it to the material property");
+                end
+            end
+            if isnumeric(Mue)
+                Mue = num2str(Mue);
+            else
+                if ~obj.isParameter(Eps)
+                    error("CST:MicrowaveStudio:ParameterDoesntExist",...
+                        "Parameter "+ Eps +" does not exist. Please add it to the project before assigning it to the material property");
+                end
+            end
+            
             VBA =  sprintf(['With Material\n',...
                 '.Reset\n',...
                 '.Name "%s"\n',...
                 '.Type "Normal"\n',...
-                '.Epsilon "%f"\n',...
-                '.Mue "%f"\n',...
+                '.Epsilon "%s"\n',...
+                '.Mue "%s"\n',...
                 '.Colour "%f", "%f", "%f"\n',...
                 '.Create\n',...
                 'End With'],...
@@ -573,11 +635,11 @@ classdef CST_MicrowaveStudio < handle
             %along the z-axis
             p = inputParser;
             p.addParameter('color',[])
-            
+            p.addParameter('zmin',0)
             p.parse(varargin{:});
             C = p.Results.color;
             C = C*128;
-            
+            zmin = p.Results.zmin;
             %VBA = cell(0,1);
             
             VBA = sprintf(['With Extrude\n',...
@@ -589,11 +651,11 @@ classdef CST_MicrowaveStudio < handle
                 '.Height "%f"\n',...
                 '.Twist "0.0"\n',...
                 '.Taper "0.0"\n',...
-                '.Origin "0.0", "0.0", "0.0"\n',...
+                '.Origin "0.0", "0.0", "%f"\n',...
                 '.Uvector "1.0", "0.0", "0.0"\n',...
                 '.Vvector "0.0", "1.0", "0.0"\n',...
                 '.Point "%f", "%f"\n'],...
-                name,component,material,height,points(1,1),points(1,2));
+                name,component,material,height,zmin,points(1,1),points(1,2));
             
             VBA2 = [];
             for i = 2:length(points)
