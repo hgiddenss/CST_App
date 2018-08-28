@@ -203,7 +203,7 @@ classdef CST_MicrowaveStudio < handle
             if obj.isParameter(name)
                 val = obj.mws.invoke('RestoreDoubleParameter',name);
             end
-            
+             
         end
         function defineUnits(obj,varargin)
             %defineUnits(Parameter,value) - Define the units used in the CST_MicrowaveStudio
