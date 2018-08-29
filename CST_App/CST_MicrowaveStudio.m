@@ -23,6 +23,7 @@ classdef CST_MicrowaveStudio < handle
     %   addParameter
     %   changeParemeter
     %   parameterUpdate
+    %   getParameterValue
     %
     %   --Simulation Methods--
     %   addDiscretePort
@@ -169,7 +170,9 @@ classdef CST_MicrowaveStudio < handle
             obj.CST.invoke('quit');
         end
         function addParameter(obj,name,value)
-           %Add a new parameter to MWS project
+            % CST_MicrowaveStudio.addParameter(name,value)
+            % Add a new parameter to the project. Value must be a
+            % double
            
            if obj.isParameter(name)
                obj.changeParameterValue(obj,name,value)
@@ -179,7 +182,9 @@ classdef CST_MicrowaveStudio < handle
            
         end
         function changeParameterValue(obj,name,value)
-            %Add a new parameter to MWS project
+            % CST_MicrowaveStudio.changeParameterValue(name,value)
+            % Change the value of an existing parameter. Value must be a
+            % double
             
             if ~obj.isParameter(name)
                 addParameter(obj,name,value)
@@ -189,11 +194,14 @@ classdef CST_MicrowaveStudio < handle
             end
         end
         function parameterUpdate(obj)
-            %Update the history list
+            % CST_MicrowaveStudio.parameterUpdate
+            % Update the history list
             obj.mws.invoke('Rebuild');
         end
         function out = isParameter(obj,name)
-            %Check if a parameter exists
+            % CST_MicrowaveStudio.isParameter(name)
+            % Check if a parameter exists
+            
             out = obj.mws.invoke('DoesParameterExist',name);
         end
         function val = getParameterValue(obj,name)
