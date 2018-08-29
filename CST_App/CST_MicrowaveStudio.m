@@ -82,7 +82,7 @@ classdef CST_MicrowaveStudio < handle
         F2 = []
     end
     properties (Access = private)
-        version = '1.1.3';
+        version = '1.1.4';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
