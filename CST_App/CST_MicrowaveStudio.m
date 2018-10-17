@@ -43,8 +43,11 @@ classdef CST_MicrowaveStudio < handle
     %   addBrick
     %   addCylinder
     %   addPolygonBlock
+    %   addPolygonBlock3D
     %   addSphere
     %   rotateObject
+    %   translateObject
+    %   connectFaces
     %
     %   --Result Methods--
     %   getSParameters
@@ -82,18 +85,38 @@ classdef CST_MicrowaveStudio < handle
         F2 = []
     end
     properties (Access = private)
-        version = '1.1.5'; 
+        version = '1.1.6'; 
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
-            %CST_MicrowaveStudio   Construct an instance of this class
-            %which will be saved in the specified folder with the specified
-            %filename. If the '.cst' file already exists, the existing
-            %project will  be opened. If the file is already open in CST,
-            %the handles to the correct CST handles should be returned
+            %CST_MicrowaveStudio with no input parameters will construct an
+            % instance of CST_MicrowaveStudio related to the currently open
+            % project in CST.
+            %
+            % CST_MicrowaveStudio(folder,filename) will either create a new
+            % CST mws project, or will open an existing project (if it
+            % exists).
             %
             % Examples:
-            % CST = CST_MicrowaveStudio(cd,'New_MWS_Simulation.cst');
+            % To create a new microwave studio project
+            % CST = CST_MicrowaveStudio(cd,'New_MWS_Simulation.cst'); 
+            %
+            % CST = CST_MicrowaveStudio; %Return the currently active MWS
+            % project
+            
+            if nargin == 0
+                %Get the current MWS session
+                obj.CST = actxserver('CSTStudio.application');
+                obj.mws = obj.CST.Active3D;
+                if isempty(obj.mws)
+                    error('CSTMicrowaveStudio:NoFileOpen',...
+                        'I tried to return the active microwave studio session, but it appears that no proects are currently open');
+                end
+                [obj.folder,obj.filename] = fileparts(obj.mws.invoke('GetProjectPath','Project'));
+                fprintf('CST_MicrowaveStudio Successfully opened. Active microwave studio project is:\n%s\\%s.cst\n',obj.folder,obj.filename)
+                return
+                
+            end
             
             obj.folder = folder;
             
@@ -112,10 +135,11 @@ classdef CST_MicrowaveStudio < handle
             if exist(ff,'file') == 2
                 %If file exists, open
                 [obj.CST,obj.mws] = CST_MicrowaveStudio.openFile(obj.folder,obj.filename);
-                
+                fprintf('Microwave studio project was successfully opened\n')
             else %Create a new MWS session
                 %Create a directory in 'folder' called
                 %CST_MicrowaveStudio_Files which is added to .gitignore
+                fprintf('Creating new microwave studio session\n');
                 dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
                 obj.folder = dirstring;
                 obj.CST = actxserver('CSTStudio.application');
@@ -369,9 +393,12 @@ classdef CST_MicrowaveStudio < handle
             
             %This avoids conflicts when adding new ports - we could (should?) get
             %next available port number interactively from the MWS file
-            if nargin < 7
-                portNumber = obj.ports + 1;
+            if nargin < 6
+                warning('The input paramter "portNumber" is obsolete and will be removed in future release');
             end
+            
+            p = obj.mws.invoke('Port');
+            portNumber = p.invoke('StartPortNumberIteration') + 1;
             
             
             VBA =  sprintf(['With DiscretePort\n',...
@@ -406,7 +433,7 @@ classdef CST_MicrowaveStudio < handle
             % CST = CST_MicrowaveStudio(cd,'test');
             % CST.addPort('zmax',(0 5),(0 10), 5)
             %
-            
+            % portNumber is obsolete and will be removed in future release
             
             %Orientation defines the direction of the port
             switch lower(orientation)
@@ -429,8 +456,11 @@ classdef CST_MicrowaveStudio < handle
             end
             
             if nargin < 6
-                portNumber = obj.ports + 1;
+                warning('The input paramter "portNumber" is obsolete and will be removed in future release');
             end
+            
+            p = obj.mws.invoke('Port');
+            portNumber = p.invoke('StartPortNumberIteration') + 1;
             
             VBA = sprintf(['With Port\n'...
                 '.Reset\n'...
