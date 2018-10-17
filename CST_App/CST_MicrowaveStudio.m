@@ -601,9 +601,12 @@ classdef CST_MicrowaveStudio < handle
         function rotateObject(obj,componentName,objectName,rotationAngles,rotationCenter,copy,repetitions)
             % Rotate an object in located in one of the components
             %
-            %
-            %
+            % 
+            % THIS WILL BE UPDATED IN FUTURE VERSION
             % Currently not possible to rotate ports, faces, curves etc...
+            
+            warning('CST_MicrowaveStudio:rotateObject','The use of this function will change in a future release')
+            
             nameStr = [componentName,':',objectName];
             if nargin < 6
                 copy = 'False';
@@ -639,8 +642,8 @@ classdef CST_MicrowaveStudio < handle
             
         end
         function addPolygonBlock(obj,points,height,name,component,material,varargin)
-            %At the moment the block can only be in the x-y plane extending
-            %along the z-axis
+            %add a polygon with any number of sides to the simulations
+            %space. Polygon will be aligned in the x-y plane
             p = inputParser;
             p.addParameter('color',[])
             p.addParameter('zmin',0)
@@ -680,6 +683,78 @@ classdef CST_MicrowaveStudio < handle
                 s.invoke('ChangeIndividualColor',[component,':',name],num2str(C(1)),num2str(C(2)),num2str(C(3)));
             end
             
+        end
+        function addPolygonBlock3D(obj,points,thickness,name,component,material,varargin)
+            %Add a block in any plane using 3-column coordinates
+            p = inputParser;
+            p.addParameter('color',[])
+            p.addParameter('curve','3dpolygon1')
+            p.addParameter('curveName','curve1')
+            p.parse(varargin{:});
+            C = p.Results.color;
+            C = C*128;
+            
+            %VBA = cell(0,1);
+            
+            VBA = sprintf(['With Polygon3D\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Curve "%s"\n',...
+                '.Point "%f", "%f", "%f"\n'],...
+                p.Results.curve,p.Results.curveName,points(1,1),points(1,2),points(1,3));
+            
+            VBA2 = [];
+            for i = 2:length(points)
+                VBA2 = [VBA2,sprintf('.Point "%f", "%f", "%f"\n', points(i,1),points(i,2),points(i,3))]; %#ok<AGROW>
+            end
+            VBA = [VBA,VBA2,sprintf('.create\nEnd With')];
+            
+            obj.mws.invoke('AddToHistory',['define curve: ',p.Results.curve,':',p.Results.curveName],VBA);
+            
+            VBA = sprintf(['With ExtrudeCurve\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Component "%s"\n',...
+                '.Material "%s"\n',...
+                '.Thickness  "%f"\n',...
+                '.Twistangle "0.0"\n',...
+                '.Taperangle "0"\n',...
+                '.DeleteProfile "True"\n',...
+                '.Curve "%s:%s"\n',...
+                '.Create\nEnd With'],...
+            name,component,material,thickness,p.Results.curveName,p.Results.curve);
+            
+            obj.mws.invoke('AddToHistory',['define extrudeprofile: ',component,':',name],VBA);
+            
+            %Change color if required
+            if ~isempty(C)
+                s = obj.mws.invoke('Solid');
+                s.invoke('SetUseIndividualColor',[component,':',name],'1');
+                s.invoke('ChangeIndividualColor',[component,':',name],num2str(C(1)),num2str(C(2)),num2str(C(3)));
+            end
+        end
+        function connectFaces(obj,component1,face1,component2,face2,component,name,material)
+            %Connect two face to form a solid block. This is useful if
+            %trying to create 3D surfaces with thickness > 0. See Sinusoid
+            %Surface Example
+            
+            VBA = sprintf('Pick.PickFaceFromId "%s:%s", "1" ',component1,face1);
+            obj.mws.invoke('AddToHistory','pick face',VBA);
+            VBA = sprintf('Pick.PickFaceFromId "%s:%s", "1" ',component2,face2);
+            obj.mws.invoke('AddToHistory','pick face',VBA);
+            
+            VBA = sprintf(['With Loft\n',... 
+                    '.Reset\n',...
+                    '.Name "%s"\n',... 
+                    '.Component "%s"\n',... 
+                    '.Material "%s"\n',... 
+                    '.Tangency "0.0"\n',... 
+                    '.Minimizetwist "true"\n',... 
+                    '.CreateNew\n',... 
+                    'End With',...
+                    ],name,component,material);
+                
+            obj.mws.invoke('AddToHistory',['define loft: ',component,':',name],VBA);
         end
         function addCylinder(obj,R1,R2,orientation,X,Y,Z,name,component,material)
             if ~strcmpi(orientation,'z')
@@ -737,6 +812,45 @@ classdef CST_MicrowaveStudio < handle
             
             obj.mws.invoke('AddToHistory',['define sphere:',component,':',name],VBA);
             
+        end
+        function translateObject(obj,name,x,y,z,copy,varargin)
+            
+            if copy
+                copy = 'True';
+            else
+                copy = 'Fase';
+            end
+            
+            p = inputParser;
+            p.addParameter('repetitions',1);
+            p.addParameter('material','');
+            p.addParameter('destination','');
+            p.parse(varargin{:})
+            
+                
+            VBA = sprintf(['With Transform\n',...
+                '.Reset \n',...
+                '.Name "%s"\n',...
+                '.Vector "%.4f", "%.4f", "%.4f"\n',...
+                '.UsePickedPoints "False"\n',...
+                '.InvertPickedPoints "False"\n',...
+                '.MultipleObjects "%s"\n',...
+                '.GroupObjects "False"\n',...
+                '.Repetitions "%d"\n',...
+                '.MultipleSelection "False"\n',...
+                '.Destination "%s"\n',...
+                '.Material "%s"\n',...
+                '.Transform "Shape", "Translate"\n',...
+                'End With'],...
+                name,x,y,z,copy,p.Results.repetitions,p.Results.destination,p.Results.material);
+            
+            %Check for destination component?
+            
+            obj.mws.invoke('AddToHistory',['transform:',name],VBA);
+        end
+        function addComponent(obj,component)
+            %addComponent  add a new co
+            obj.mws.invoke('AddToHistory',['new component:',component],['Component.New "',component,'"']);
         end
         function setFreq(obj,F1,F2)
             obj.mws.invoke('AddToHistory','Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
@@ -1314,12 +1428,25 @@ classdef CST_MicrowaveStudio < handle
                 switch lower(monitor)
                     case{'farfield','ffid','ffm','.ffm'}
                         idStrings = filenames(ffm);
+                        
+                        %Try to correct for the way the ffid and idstrings
+                        %change with the first underscore and brackets
+                        for i = 1:numel(idStrings)
+                            idx = strfind(idStrings{i},'_');
+                            if ~isempty(idx)
+                                idStrings{i} = [idStrings{i}(1:idx(1)-1),' [',idStrings{i}(idx(1)+1:end)];
+                            end
+                        end
+                        idStrings = replace(idStrings,'.ffm',']');
+                        
                     case{'3dfield','efield','hfield','m3d','.m3d'}
                         idStrings = filenames(m3d);
                 end
             else
                 idStrings = filenames(ffm | m3d);
             end
+            
+            
         end
     end
     methods (Static)
