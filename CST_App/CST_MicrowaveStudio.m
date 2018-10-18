@@ -48,6 +48,8 @@ classdef CST_MicrowaveStudio < handle
     %   rotateObject
     %   translateObject
     %   connectFaces
+    %   mergeCommonSolids
+    %   deleteObject
     %
     %   --Result Methods--
     %   getSParameters
@@ -55,6 +57,11 @@ classdef CST_MicrowaveStudio < handle
     %   getEFieldVector
     %   getMeshInfo
     %   getFieldIDStrings
+    %
+    %   --Other--
+    %   addToHistory
+    %   setUpdateStatus
+    %   update
     %
     %   For help on specific functions, type
     %   CST_MicrowaveStuio.FunctionName (e.g. "help CST_MicrowaveStudio.setBoundaryCondition")
@@ -64,6 +71,10 @@ classdef CST_MicrowaveStudio < handle
     %   CST_MicrowaveStudioHandle.mws.invoke('AddToHistory','Action String identifier',VBA])
     %
     %   See Also: actxserver, addGradedIndexMaterialCST, CST_App\Examples
+    %   
+    %   Latest Versions Available: 
+    %   https://uk.mathworks.com/matlabcentral/fileexchange/67731-hgiddenss-cst_app
+    %   https://github.com/hgiddenss/CST_App
     %
     %   Copyright: Henry Giddens 2018, Antennas and Electromagnetics
     %   Group, Queen Mary University London, 2018 (For further help,
@@ -73,19 +84,24 @@ classdef CST_MicrowaveStudio < handle
         CST       % Handle to CST through actxserver
         folder    % Folder
         filename  % Filename
-        mws
-    end
+        mws       % Handle to the microwave studio project
+    end          
     properties (Hidden)
-        ports = 0;
+        ports = 0; %to be removed
         solver = 't';
         listeners
     end
-    properties (Hidden, SetObservable) %For future use
-        F1 = []
-        F2 = []
+%     properties (Hidden, SetObservable) %For future use
+%         F1 = []
+%         F2 = []
+%     end
+    properties (SetAccess = private)
+        autoUpdate = true %If true, each relevant command will be added to history once function finishes executing
+        VBAstring = [];     %If false, the VBA commands will be added to the VBAstring property, and the addToHistory Method must be called. 
+                            %All commands will be added in same action and it is sometimes fast when dealing with large loops. 
     end
-    properties (Access = private)
-        version = '1.1.6'; 
+    properties(Access = private)
+        version = '1.2.1'; 
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -145,13 +161,10 @@ classdef CST_MicrowaveStudio < handle
                 obj.CST = actxserver('CSTStudio.application');
                 obj.mws = obj.CST.invoke('NewMWS');
                 
-                
                 % For Future Version - allow user to store some values as
                 % object properties, such as the frequency, which update in the
                 % MWS model whenever they are updated in Matlab
                 % obj.listeners = addlistener(obj,{'F1','F2'},'PreSet',@obj.setFreqListenerResp);
-                
-                
                 
                 %Set up some default simulation parameters:
                 obj.defineUnits;
@@ -168,7 +181,7 @@ classdef CST_MicrowaveStudio < handle
                     'End With',...
                     ]);
                 
-                obj.mws.invoke('AddToHistory','define boundaries',VBA);
+                obj.mws.invoke('addToHistory','define boundaries',VBA);
                 
                 VBA = sprintf(['With Material\n',...
                     '.Type "Normal\n',...
@@ -177,8 +190,40 @@ classdef CST_MicrowaveStudio < handle
                     'End With',...
                     ]);
                 
-                obj.mws.invoke('AddToHistory','Set Background Material',VBA);
+                obj.mws.invoke('addToHistory','Set Background Material',VBA);
             end
+        end
+        function setUpdateStatus(obj,status)
+           %CST.setUpdateStatus sets the status of the addToHistoryList property 
+           if status == 1 || status == 0
+               status = logical(status);
+           end
+           if ~islogical(status)
+               error('CST_MicrowaveStudio:incorrectParameterType','Input parameter "status" must be of boolean/logical type');
+           end
+           if nargin == 2
+               obj.autoUpdate = status;
+           end
+           
+        end
+        function addToHistory(obj,commandString,VBAstring)
+            %CST.addToHistoryList(commandString,VBAstring) adds the commands in
+            %VBAstring to the history list. They must be correctly
+            %formatted else errors in CST will occur, halting the execution
+            %of any code.
+            %CST.addToHistory(commandString) will add any strings stored in
+            %the object property VBAstring. commandString will be the
+            %string shown in the history list. consecutive commandStrings
+            %should never be the same as this may cause errors when the CST
+            %history list is updated
+            if nargin < 2
+                commandString = ['CST_update_',datestr(now(),"HHMMSSddmmyyyy")]; %A unique string based on current time
+            end
+            if nargin < 3
+                VBAstring = obj.VBAstring;
+                obj.VBAstring = [];
+            end
+            obj.mws.invoke('addToHistory',commandString,VBAstring);
         end
         function save(obj)
             if ~exist(obj.folder,'file') == 7
@@ -292,7 +337,8 @@ classdef CST_MicrowaveStudio < handle
                 '.Capacitance "PikoF"\n',...
                 '.Inductance "NanoH"\n',...
                 'End With' ],geom,freq,time,temp);
-            obj.mws.invoke('AddToHistory','Set Units',VBA);
+            
+            obj.update('Set Units',VBA);
             
         end
         function addBrick(obj,X,Y,Z,name,component,material,varargin)
@@ -317,7 +363,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 name,component,material,X(1),X(2),Y(1),Y(2),Z(1),Z(2));
             
-            obj.mws.invoke('AddToHistory',['define brick: ',component,':',name],VBA);
+            obj.update(['define brick: ',component,':',name],VBA);
             
             %Change color if required
             if ~isempty(C)
@@ -325,6 +371,14 @@ classdef CST_MicrowaveStudio < handle
                 s.invoke('SetUseIndividualColor',[component,':',name],'1');
                 s.invoke('ChangeIndividualColor',[component,':',name],num2str(C(1)),num2str(C(2)),num2str(C(3)));
             end
+        end
+        function mergeCommonSolids(obj,component)
+            %CST.mergeCommonSolids(component) will merge all solids in the
+            % named components that share the same material. It seems to be
+            % much quicker than calling booleanAdd for each pair of
+            % individually. 
+            % See SinusoidSurface example for extra information
+            obj.update(['new component:',component],['Solid.MergeMaterialsOfComponent "',component,'"']);
         end
         function addNormalMaterial(obj,name,Eps,Mue,C)
             %Add a new 'Normal' material to the CST project
@@ -357,7 +411,7 @@ classdef CST_MicrowaveStudio < handle
                 '.Create\n',...
                 'End With'],...
                 name,Eps,Mue,C(1),C(2),C(3));
-            obj.mws.invoke('AddToHistory',['define material: ',name],VBA);
+            obj.update(['define material: ',name],VBA);
         end
         function addAnisotropicMaterial(obj,name,Eps,Mue,C)
             VBA =  sprintf(['With Material\n',...
@@ -374,9 +428,9 @@ classdef CST_MicrowaveStudio < handle
                 '.Create\n',...
                 'End With'],...
                 name,Eps(1),Eps(2),Eps(3),Mue(1),Mue(2),Mue(3),C(1),C(2),C(3));
-            obj.mws.invoke('AddToHistory',['define material: ',name],VBA);
+            obj.update(['define material: ',name],VBA);
         end
-        function addDiscretePort(obj,X,Y,Z,R,impedance,portNumber)
+        function addDiscretePort(obj,X,Y,Z,R,impedance,varargin)
             %Add a discrete line source in the positions defined by the X, Y and Z
             %inputs, with radius, R, and impedance defined by the other
             %input arguments
@@ -391,15 +445,13 @@ classdef CST_MicrowaveStudio < handle
                 impedance = 50;
             end
             
-            %This avoids conflicts when adding new ports - we could (should?) get
-            %next available port number interactively from the MWS file
-            if nargin < 6
+            if nargin == 7
                 warning('The input paramter "portNumber" is obsolete and will be removed in future release');
             end
             
+            %Get the total next available port number
             p = obj.mws.invoke('Port');
             portNumber = p.invoke('StartPortNumberIteration') + 1;
-            
             
             VBA =  sprintf(['With DiscretePort\n',...
                 '.Reset\n',...
@@ -413,11 +465,11 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 portNumber, X(1),Y(1),Z(1),X(2),Y(2),Z(2),impedance,R);
             
-            obj.mws.invoke('AddToHistory',['define discrete port: ',num2str(obj.ports+1)],VBA);
+            obj.update(['define discrete port: ',num2str(obj.ports+1)],VBA);
             
             obj.ports = obj.ports + 1; %Should this be obtained from the MWS file?
         end
-        function addWaveguidePort(obj,orientation,X,Y,Z,portNumber)
+        function addWaveguidePort(obj,orientation,X,Y,Z,varargin)
             % Add a wave guide port to the simulation file.
             % CST.addWaveguidePort(orientation,X,Y,Z) adds a wavegiude port
             % oriented in one of the X,Y,Z planes. Orientation can
@@ -455,7 +507,7 @@ classdef CST_MicrowaveStudio < handle
                     return
             end
             
-            if nargin < 6
+            if nargin == 6
                 warning('The input paramter "portNumber" is obsolete and will be removed in future release');
             end
             
@@ -489,7 +541,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 portNumber,orientation,X(1),X(2),Y(1),Y(2),Z(1),Z(2));
             
-            obj.mws.invoke('AddToHistory',['define waveguide port: ',num2str(obj.ports+1)],VBA);
+            obj.update(['define waveguide port: ',num2str(obj.ports+1)],VBA);
             obj.ports = obj.ports + 1; %Should this be obtained from the MWS file?
         end
         function addFieldMonitor(obj,fieldType,freq)
@@ -526,7 +578,7 @@ classdef CST_MicrowaveStudio < handle
                 '.Create\n',...
                 'End With'],...
                 name,fieldType,freq);
-            obj.mws.invoke('AddToHistory',['define field monitor: ',name],VBA);
+            obj.update(['define field monitor: ',name],VBA);
             
         end
         function setBackgroundLimits(obj,X,Y,Z)
@@ -548,7 +600,7 @@ classdef CST_MicrowaveStudio < handle
                 '.ApplyInAllDirections "False"\n',...
                 'End With'],...
                 X(1),X(2),Y(1),Y(2),Z(1),Z(2));
-            obj.mws.invoke('AddToHistory','define background',VBA);
+            obj.update('define background',VBA);
             
         end
         function addSymmetryPlane(obj,planeNormal,symType)
@@ -562,7 +614,7 @@ classdef CST_MicrowaveStudio < handle
                 '.%ssymmetry "%s"\n',...
                 'End With'],...
                 planeNormal,symType);
-            obj.mws.invoke('AddToHistory',['define boundary: ',planeNormal,' normal'],VBA);
+            obj.update(['define boundary: ',planeNormal,' normal'],VBA);
         end
         function setBoundaryCondition(obj,varargin)
             %Set the boundary conditions for CST MWS simulation:
@@ -603,7 +655,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With',...
                 ]);
             
-            obj.mws.invoke('AddToHistory','define boundaries',VBA);
+            obj.update('define boundaries',VBA);
             
             if any(strcmpi(varargin,'unit cell'))
                 %Set Floquet port mode to 2 (default - 18)
@@ -623,7 +675,7 @@ classdef CST_MicrowaveStudio < handle
                     '.SetDistanceToReferencePlane "0.0"\n',...
                     '.SetUseCircularPolarization "False"\n',...
                     'End With']);
-                obj.mws.invoke('AddToHistory','define Floquet Port boundaries',VBA);
+                obj.update('define Floquet Port boundaries',VBA);
                 
                 
             end
@@ -635,7 +687,7 @@ classdef CST_MicrowaveStudio < handle
             % THIS WILL BE UPDATED IN FUTURE VERSION
             % Currently not possible to rotate ports, faces, curves etc...
             
-            warning('CST_MicrowaveStudio:rotateObject','The use of this function will change in a future release')
+            warning('CST_MicrowaveStudio:rotateObject','The inputparameter list of rotateObject will change in a future release')
             
             nameStr = [componentName,':',objectName];
             if nargin < 6
@@ -668,7 +720,7 @@ classdef CST_MicrowaveStudio < handle
                 rotationAngles(1),rotationAngles(2),rotationAngles(3),...
                 copyStr,repetitions);
             
-            obj.mws.invoke('AddToHistory',['transform: rotate ',nameStr],VBA);
+            obj.update(['transform: rotate ',nameStr],VBA);
             
         end
         function addPolygonBlock(obj,points,height,name,component,material,varargin)
@@ -704,7 +756,7 @@ classdef CST_MicrowaveStudio < handle
             end
             VBA = [VBA,VBA2,sprintf('.create\nEnd With')];
             
-            obj.mws.invoke('AddToHistory',['define brick: ',component,':',name],VBA);
+            obj.update(['define brick: ',component,':',name],VBA);
             
             %Change color if required
             if ~isempty(C)
@@ -739,7 +791,7 @@ classdef CST_MicrowaveStudio < handle
             end
             VBA = [VBA,VBA2,sprintf('.create\nEnd With')];
             
-            obj.mws.invoke('AddToHistory',['define curve: ',p.Results.curve,':',p.Results.curveName],VBA);
+            obj.update(['define curve: ',p.Results.curve,':',p.Results.curveName],VBA);
             
             VBA = sprintf(['With ExtrudeCurve\n',...
                 '.Reset\n',...
@@ -754,7 +806,7 @@ classdef CST_MicrowaveStudio < handle
                 '.Create\nEnd With'],...
             name,component,material,thickness,p.Results.curveName,p.Results.curve);
             
-            obj.mws.invoke('AddToHistory',['define extrudeprofile: ',component,':',name],VBA);
+            obj.update(['define extrudeprofile: ',component,':',name],VBA);
             
             %Change color if required
             if ~isempty(C)
@@ -769,9 +821,9 @@ classdef CST_MicrowaveStudio < handle
             %Surface Example
             
             VBA = sprintf('Pick.PickFaceFromId "%s:%s", "1" ',component1,face1);
-            obj.mws.invoke('AddToHistory','pick face',VBA);
+            obj.update('pick face',VBA);
             VBA = sprintf('Pick.PickFaceFromId "%s:%s", "1" ',component2,face2);
-            obj.mws.invoke('AddToHistory','pick face',VBA);
+            obj.update('pick face',VBA);
             
             VBA = sprintf(['With Loft\n',... 
                     '.Reset\n',...
@@ -784,7 +836,7 @@ classdef CST_MicrowaveStudio < handle
                     'End With',...
                     ],name,component,material);
                 
-            obj.mws.invoke('AddToHistory',['define loft: ',component,':',name],VBA);
+            obj.update(['define loft: ',component,':',name],VBA);
         end
         function addCylinder(obj,R1,R2,orientation,X,Y,Z,name,component,material)
             if ~strcmpi(orientation,'z')
@@ -806,8 +858,9 @@ classdef CST_MicrowaveStudio < handle
                 '.Create\n',...
                 'End With'],...
                 name,component,material,R1,R2,lower(orientation),Z(1),Z(2),X,Y);
+            obj.update(['define cylinder:',component,':',name],VBA);
             
-            obj.mws.invoke('AddToHistory',['define cylinder:',component,':',name],VBA);
+            %obj.update(['define cylinder:',component,':',name],VBA);
             
         end
         function addSphere(obj,X,Y,Z,R1,R2,R3,name,component,material,varargin)
@@ -840,7 +893,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 name,component,material,orientation,R1,R2,R3,X,Y,Z,segments);
             
-            obj.mws.invoke('AddToHistory',['define sphere:',component,':',name],VBA);
+            obj.update(['define sphere:',component,':',name],VBA);
             
         end
         function translateObject(obj,name,x,y,z,copy,varargin)
@@ -876,16 +929,40 @@ classdef CST_MicrowaveStudio < handle
             
             %Check for destination component?
             
-            obj.mws.invoke('AddToHistory',['transform:',name],VBA);
+            obj.update(['transform:',name],VBA);
+        end
+        function deleteObject(obj,objectType,objectName)
+            %deleteObject(objectType,objectName)
+            % Object type is the VBA object type - currently only
+            % 'component' and 'solid' are allowed
+            % Objectname must include the full component reference, e.g.
+            % component1:solid1
+            % Example:
+            % CST.addBrick([0 1],[0 1],[0 1],'Brick1','component1','PEC');
+            % CST.addBrick([1 3],[1 4], [1 4],'Brick2','component2','PEC');
+            % pause(3)
+            % CST.deleteObject('component','component1');
+            % pause(3)
+            % CST.deleteObject('solid','component2:Brick2');
+            
+            
+            switch lower(objectType)
+                case{'component','solid'}
+                
+                otherwise
+                    error('You cannot currently delete %s programatically, please send a request to h.giddens@qmul.ac.uk',objectType);
+            end
+            
+            obj.update(['delete ',objectType,': ',objectName],[objectType,'.Delete "',objectName,'" ']);
         end
         function addComponent(obj,component)
             %addComponent  add a new co
-            obj.mws.invoke('AddToHistory',['new component:',component],['Component.New "',component,'"']);
+            obj.update(['new component:',component],['Component.New "',component,'"']);
         end
         function setFreq(obj,F1,F2)
-            obj.mws.invoke('AddToHistory','Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
-            obj.F1 = F1;
-            obj.F2 = F2;
+            obj.update('Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
+            %obj.F1 = F1;
+            %obj.F2 = F2;
         end
         
         function setSolver(obj,solver)
@@ -897,7 +974,7 @@ classdef CST_MicrowaveStudio < handle
                     VBA = 'ChangeSolverType "HF Time Domain" ';
                     obj.solver = 't';
             end
-            obj.mws.invoke('AddToHistory','change solver type',VBA);
+            obj.update('change solver type',VBA);
             
         end
         function defineFloquetModes(obj,nModes)
@@ -918,7 +995,7 @@ classdef CST_MicrowaveStudio < handle
                 '.SetDistanceToReferencePlane "0.0"\n',...
                 '.SetUseCircularPolarization "False"\n',...
                 'End With'],nModes,nModes);
-            obj.mws.invoke('AddToHistory','define Floquet Port boundaries',VBA);
+            obj.update('define Floquet Port boundaries',VBA);
         end
         function runSimulation(obj)
             switch obj.solver
@@ -1477,6 +1554,15 @@ classdef CST_MicrowaveStudio < handle
             end
             
             
+        end
+    end
+    methods (Hidden, Access = protected)
+        function update(obj,commandString,VBAstring)
+            if obj.autoUpdate
+                obj.addToHistory(commandString,VBAstring);
+            else
+                obj.VBAstring = [obj.VBAstring,VBAstring,newline];
+            end
         end
     end
     methods (Static)
