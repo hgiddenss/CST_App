@@ -1,5 +1,7 @@
 function [outputArg1,outputArg2] = add3DSurfaceCST(CST,X,Y,Z,thickness,material,component)
-%ADD3DSURFACECST Summary of this function goes here
+%ADD3DSURFACECST adds a 3-dimenoinal surface defined by surf(x,y,z) to the
+%CST_MirowaveStudio object.
+%   add3DSurface(CST,X,Y,Z,thickness,material,component)
 %   Detailed explanation goes here
 
 [I,J] = size(X);

@@ -378,7 +378,7 @@ classdef CST_MicrowaveStudio < handle
             % much quicker than calling booleanAdd for each pair of
             % individually. 
             % See SinusoidSurface example for extra information
-            obj.update(['new component:',component],['Solid.MergeMaterialsOfComponent "',component,'"']);
+            obj.update(['Merge Common Materials:',component],['Solid.MergeMaterialsOfComponent "',component,'"']);
         end
         function addNormalMaterial(obj,name,Eps,Mue,C)
             %Add a new 'Normal' material to the CST project
@@ -896,6 +896,42 @@ classdef CST_MicrowaveStudio < handle
             obj.update(['define sphere:',component,':',name],VBA);
             
         end
+        function addSParamMaterialThinPanel(obj,name,S11,S21,freq,impedance,c)
+            
+            
+            S11_r = real(S11);
+            S11_i = imag(S11);
+            S21_r = real(S21);
+            S21_i = imag(S21);
+            
+            VBA = sprintf(['With Material \n',...
+                    '.Reset\n',...
+                    '.Name "%s"\n',...
+                    '.Folder ""\n',...
+                    '.ThinPanel "True"\n',...
+                    '.ReferenceCoordSystem "Global"\n',...
+                    '.CoordSystemType "Cartesian"\n',...
+                    '.SetCoatingTypeDefinition "SMATRIX_TABLE"\n',...
+                    '.ResetTabulatedCompactModelList\n',...
+                    '.MaximalOrderFitTabulatedCompactModel "10"\n',...
+                    '.ErrorLimitFitTabulatedCompactModel "0.001"\n',...
+                    '.UseOnlyDataInSimFreqRangeTabulatedCompactModel "False"\n',...
+                    '.SetSymmTabulatedCompactModelImpedance "%.2f"\n',... %impedance
+                    '.TabulatedCompactModelAnisotropic "False"\n',...
+                    '.NLAnisotropy "False"\n',...
+                    '.Colour "%.2f", "%.2f", "%.2f" \n',... %c(1) c(2) c(3)
+                    '.MaterialUnit "Frequency", "GHz"\n',...
+                    ],name,impedance,c(1),c(2),c(3));
+                
+                VBA2 = [];
+                for i = 1:length(freq)
+                VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%.2f", "%.2f", "%.2f", "%.2f", "1"\n',... 
+                        freq(i),S11_r,S11_i,S21_r,S21_i)]; %#ok<AGROW>
+                end
+            VBA = [VBA,VBA2,sprintf('.Create\nEnd With')];
+                
+            obj.update(['define Material:',name],VBA);
+        end
         function translateObject(obj,name,x,y,z,copy,varargin)
             
             if copy
@@ -960,7 +996,7 @@ classdef CST_MicrowaveStudio < handle
             obj.update(['new component:',component],['Component.New "',component,'"']);
         end
         function setFreq(obj,F1,F2)
-            obj.update('Component1:Block1',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
+            obj.update('SetFrequency',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
             %obj.F1 = F1;
             %obj.F2 = F2;
         end
