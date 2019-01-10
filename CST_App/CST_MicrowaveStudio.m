@@ -71,8 +71,8 @@ classdef CST_MicrowaveStudio < handle
     %   CST_MicrowaveStudioHandle.mws.invoke('AddToHistory','Action String identifier',VBA])
     %
     %   See Also: actxserver, addGradedIndexMaterialCST, CST_App\Examples
-    %   
-    %   Latest Versions Available: 
+    %
+    %   Latest Versions Available:
     %   https://uk.mathworks.com/matlabcentral/fileexchange/67731-hgiddenss-cst_app
     %   https://github.com/hgiddenss/CST_App
     %
@@ -85,23 +85,23 @@ classdef CST_MicrowaveStudio < handle
         folder    % Folder
         filename  % Filename
         mws       % Handle to the microwave studio project
-    end          
+    end
     properties (Hidden)
         ports = 0; %to be removed
         solver = 't';
         listeners
     end
-%     properties (Hidden, SetObservable) %For future use
-%         F1 = []
-%         F2 = []
-%     end
+    %     properties (Hidden, SetObservable) %For future use
+    %         F1 = []
+    %         F2 = []
+    %     end
     properties (SetAccess = private)
         autoUpdate = true %If true, each relevant command will be added to history once function finishes executing
-        VBAstring = [];     %If false, the VBA commands will be added to the VBAstring property, and the addToHistory Method must be called. 
-                            %All commands will be added in same action and it is sometimes fast when dealing with large loops. 
+        VBAstring = [];     %If false, the VBA commands will be added to the VBAstring property, and the addToHistory Method must be called.
+        %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.2'; 
+        version = '1.2.3';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -115,7 +115,7 @@ classdef CST_MicrowaveStudio < handle
             %
             % Examples:
             % To create a new microwave studio project
-            % CST = CST_MicrowaveStudio(cd,'New_MWS_Simulation.cst'); 
+            % CST = CST_MicrowaveStudio(cd,'New_MWS_Simulation.cst');
             %
             % CST = CST_MicrowaveStudio; %Return the currently active MWS
             % project
@@ -168,7 +168,7 @@ classdef CST_MicrowaveStudio < handle
                 
                 %Set up some default simulation parameters:
                 obj.defineUnits;
-                obj.setFreq(11,13);
+                obj.setFreq(1,10);
                 
                 %Boundaries:
                 VBA = sprintf(['With Boundary\n',...
@@ -194,17 +194,17 @@ classdef CST_MicrowaveStudio < handle
             end
         end
         function setUpdateStatus(obj,status)
-           %CST.setUpdateStatus sets the status of the addToHistoryList property 
-           if status == 1 || status == 0
-               status = logical(status);
-           end
-           if ~islogical(status)
-               error('CST_MicrowaveStudio:incorrectParameterType','Input parameter "status" must be of boolean/logical type');
-           end
-           if nargin == 2
-               obj.autoUpdate = status;
-           end
-           
+            %CST.setUpdateStatus sets the status of the addToHistoryList property
+            if status == 1 || status == 0
+                status = logical(status);
+            end
+            if ~islogical(status)
+                error('CST_MicrowaveStudio:incorrectParameterType','Input parameter "status" must be of boolean/logical type');
+            end
+            if nargin == 2
+                obj.autoUpdate = status;
+            end
+            
         end
         function addToHistory(obj,commandString,VBAstring)
             %CST.addToHistoryList(commandString,VBAstring) adds the commands in
@@ -242,13 +242,13 @@ classdef CST_MicrowaveStudio < handle
             % CST_MicrowaveStudio.addParameter(name,value)
             % Add a new parameter to the project. Value must be a
             % double
-           
-           if obj.isParameter(name)
-               obj.changeParameterValue(obj,name,value)
-           else
-               obj.mws.invoke('StoreDoubleParameter',name,value);
-           end
-           
+            
+            if obj.isParameter(name)
+                obj.changeParameterValue(obj,name,value)
+            else
+                obj.mws.invoke('StoreDoubleParameter',name,value);
+            end
+            
         end
         function changeParameterValue(obj,name,value)
             % CST_MicrowaveStudio.changeParameterValue(name,value)
@@ -280,7 +280,7 @@ classdef CST_MicrowaveStudio < handle
             if obj.isParameter(name)
                 val = obj.mws.invoke('RestoreDoubleParameter',name);
             end
-             
+            
         end
         function defineUnits(obj,varargin)
             %defineUnits(Parameter,value) - Define the units used in the CST_MicrowaveStudio
@@ -376,7 +376,7 @@ classdef CST_MicrowaveStudio < handle
             %CST.mergeCommonSolids(component) will merge all solids in the
             % named components that share the same material. It seems to be
             % much quicker than calling booleanAdd for each pair of
-            % individually. 
+            % individually.
             % See SinusoidSurface example for extra information
             obj.update(['Merge Common Materials:',component],['Solid.MergeMaterialsOfComponent "',component,'"']);
         end
@@ -683,7 +683,7 @@ classdef CST_MicrowaveStudio < handle
         function rotateObject(obj,componentName,objectName,rotationAngles,rotationCenter,copy,repetitions)
             % Rotate an object in located in one of the components
             %
-            % 
+            %
             % THIS WILL BE UPDATED IN FUTURE VERSION
             % Currently not possible to rotate ports, faces, curves etc...
             
@@ -804,7 +804,7 @@ classdef CST_MicrowaveStudio < handle
                 '.DeleteProfile "True"\n',...
                 '.Curve "%s:%s"\n',...
                 '.Create\nEnd With'],...
-            name,component,material,thickness,p.Results.curveName,p.Results.curve);
+                name,component,material,thickness,p.Results.curveName,p.Results.curve);
             
             obj.update(['define extrudeprofile: ',component,':',name],VBA);
             
@@ -825,17 +825,17 @@ classdef CST_MicrowaveStudio < handle
             VBA = sprintf('Pick.PickFaceFromId "%s:%s", "1" ',component2,face2);
             obj.update('pick face',VBA);
             
-            VBA = sprintf(['With Loft\n',... 
-                    '.Reset\n',...
-                    '.Name "%s"\n',... 
-                    '.Component "%s"\n',... 
-                    '.Material "%s"\n',... 
-                    '.Tangency "0.0"\n',... 
-                    '.Minimizetwist "true"\n',... 
-                    '.CreateNew\n',... 
-                    'End With',...
-                    ],name,component,material);
-                
+            VBA = sprintf(['With Loft\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Component "%s"\n',...
+                '.Material "%s"\n',...
+                '.Tangency "0.0"\n',...
+                '.Minimizetwist "true"\n',...
+                '.CreateNew\n',...
+                'End With',...
+                ],name,component,material);
+            
             obj.update(['define loft: ',component,':',name],VBA);
         end
         function addCylinder(obj,R1,R2,orientation,X,Y,Z,name,component,material)
@@ -905,31 +905,31 @@ classdef CST_MicrowaveStudio < handle
             S21_i = imag(S21);
             
             VBA = sprintf(['With Material \n',...
-                    '.Reset\n',...
-                    '.Name "%s"\n',...
-                    '.Folder ""\n',...
-                    '.ThinPanel "True"\n',...
-                    '.ReferenceCoordSystem "Global"\n',...
-                    '.CoordSystemType "Cartesian"\n',...
-                    '.SetCoatingTypeDefinition "SMATRIX_TABLE"\n',...
-                    '.ResetTabulatedCompactModelList\n',...
-                    '.MaximalOrderFitTabulatedCompactModel "10"\n',...
-                    '.ErrorLimitFitTabulatedCompactModel "0.001"\n',...
-                    '.UseOnlyDataInSimFreqRangeTabulatedCompactModel "False"\n',...
-                    '.SetSymmTabulatedCompactModelImpedance "%.2f"\n',... %impedance
-                    '.TabulatedCompactModelAnisotropic "False"\n',...
-                    '.NLAnisotropy "False"\n',...
-                    '.Colour "%.2f", "%.2f", "%.2f" \n',... %c(1) c(2) c(3)
-                    '.MaterialUnit "Frequency", "GHz"\n',...
-                    ],name,impedance,c(1),c(2),c(3));
-                
-                VBA2 = [];
-                for i = 1:length(freq)
-                VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%.2f", "%.2f", "%.2f", "%.2f", "1"\n',... 
-                        freq(i),S11_r,S11_i,S21_r,S21_i)]; %#ok<AGROW>
-                end
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Folder ""\n',...
+                '.ThinPanel "True"\n',...
+                '.ReferenceCoordSystem "Global"\n',...
+                '.CoordSystemType "Cartesian"\n',...
+                '.SetCoatingTypeDefinition "SMATRIX_TABLE"\n',...
+                '.ResetTabulatedCompactModelList\n',...
+                '.MaximalOrderFitTabulatedCompactModel "10"\n',...
+                '.ErrorLimitFitTabulatedCompactModel "0.001"\n',...
+                '.UseOnlyDataInSimFreqRangeTabulatedCompactModel "False"\n',...
+                '.SetSymmTabulatedCompactModelImpedance "%.2f"\n',... %impedance
+                '.TabulatedCompactModelAnisotropic "False"\n',...
+                '.NLAnisotropy "False"\n',...
+                '.Colour "%.2f", "%.2f", "%.2f" \n',... %c(1) c(2) c(3)
+                '.MaterialUnit "Frequency", "GHz"\n',...
+                ],name,impedance,c(1),c(2),c(3));
+            
+            VBA2 = [];
+            for i = 1:length(freq)
+                VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%.2f", "%.2f", "%.2f", "%.2f", "1"\n',...
+                    freq(i),S11_r,S11_i,S21_r,S21_i)]; %#ok<AGROW>
+            end
             VBA = [VBA,VBA2,sprintf('.Create\nEnd With')];
-                
+            
             obj.update(['define Material:',name],VBA);
         end
         function translateObject(obj,name,x,y,z,copy,varargin)
@@ -946,7 +946,7 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('destination','');
             p.parse(varargin{:})
             
-                
+            
             VBA = sprintf(['With Transform\n',...
                 '.Reset \n',...
                 '.Name "%s"\n',...
@@ -984,7 +984,7 @@ classdef CST_MicrowaveStudio < handle
             
             switch lower(objectType)
                 case{'component','solid'}
-                
+                    
                 otherwise
                     error('You cannot currently delete %s programatically, please send a request to h.giddens@qmul.ac.uk',objectType);
             end
@@ -1589,6 +1589,201 @@ classdef CST_MicrowaveStudio < handle
                 idStrings = filenames(ffm | m3d);
             end
             
+            
+        end
+        function [s] = drawObjectMatlab(obj,varargin)
+            % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
+            % a matlab axes.
+            % s = drawObjectMatlab() attempts to plot all objects from all
+            % components into the current matlab axes. s contains the
+            % graphics objects of all children to the axes. All objects
+            % plotted by this function will be surface (patch) objects
+            % drawObjectMatlab(obj,paramName,value) accepts the following
+            % parameter/value input arguments:
+            %   Param               Value
+            % 'ComponentName'      Name of CST Component 
+            % 'ObjectName'         Name of CST Object
+            % 'Color'              Color to plot the specified object. If
+            %                      no color is input, each material will be
+            %                      plotted in a new color corresponding to
+            %                      the figure ColorOrder properties. 
+            % 'axes'               Handle to the axes to be plotted in
+            % 
+            
+            
+            p = inputParser;
+            p.addParameter('componentName',[]);
+            p.addParameter('objectName',[]);
+            %p.addParameter('normalTolerance',[]);
+            %p.addParameter('surfaceTolerance',[]);
+            p.addParameter('color',[]);
+            p.addParameter('axes',gca);
+            
+            p.parse(varargin{:});
+            
+            hAx = p.Results.axes;
+            hAx.NextPlot = 'add'; %hold on
+            view(3);
+            axis(hAx,'equal');
+            
+            solid = obj.mws.invoke('Solid');
+            numShapes = solid.invoke('GetNumberOfShapes');
+            
+            
+            if isempty(p.Results.objectName)
+                allObjectNames = cell(numShapes,1);
+                for iShape = 0:numShapes-1
+                    allObjectNames{iShape+1} = solid.invoke('GetNameOfShapeFromIndex',iShape);
+                end
+                for iShape = 1:numel(allObjectNames)
+                    c = strsplit(allObjectNames{iShape},':');
+                    
+                    componentName = c{1};
+                    objectName = c{2};
+                    
+                    %If no component name was input, loop through and draw
+                    %all objects in the project
+                    if isempty(p.Results.componentName)
+                        varargin{end+1} = 'componentName'; %#ok<AGROW>
+                        varargin{end+1} = componentName; %#ok<AGROW>
+                        varargin{end+1} = 'objectName'; %#ok<AGROW>
+                        varargin{end+1} = objectName; %#ok<AGROW>
+                        obj.drawObjectMatlab(varargin{:});
+                        varargin(end-3:end) = [];
+                    elseif strcmp(componentName,p.Results.componentName) %case sensitive
+                        %If component name was input but object name
+                        %wasnt, draw all objects in that component
+                        varargin{end+1} = 'objectName'; %#ok<AGROW>
+                        varargin{end+1} = objectName; %#ok<AGROW>
+                        obj.drawObjectMatlab(varargin{:});
+                        varargin(end-1:end) = [];
+                    end
+                end
+                if nargout > 0
+                    s = hAx.Children;
+                end
+                return
+            elseif isempty(p.Results.componentName)
+                error('Missing component name');
+            end %object name and component name must both be input in the inputparser, check that component exists and, if so draw...
+            
+            if ~solid.invoke('DoesExist',[p.Results.componentName,':',p.Results.objectName])
+                error(['"',p.Results.componentName,':',p.Results.objectName,'" does not exist in the CST microwave studio model'])
+            end
+            
+            objectName = p.Results.objectName;
+            componentName = p.Results.componentName;
+            
+            v = solid.invoke('getVolume',[componentName,':',objectName]);
+            
+            if v < 0
+                %stl = obj.exportSTLfile(componentName,objectName);
+            else
+                try
+                    stl = obj.exportSTLfile(componentName,objectName);
+                    TR = stlread(stl);
+                    delete(stl);
+                    
+                    c = p.Results.color;
+                    if isempty(c)
+                        %plot based on material the matlab axis colororder
+                        %until i can work out how to extract color from CST
+                        
+                        materialName = solid.invoke('GetMaterialNameForShape',[componentName,':',objectName]);
+                        
+                        %add new properties for axis so the same materials are
+                        %always plotted in the same colors
+                        if ~isprop(hAx,'materials')
+                            hAx.addprop('materials');
+                        end
+                        if ~isprop(hAx,'materialColors')
+                            hAx.addprop('materialColors');
+                        end
+                        
+                        previousMaterials = hAx.materials;
+                        idx = strcmp(previousMaterials,materialName);
+                        
+                        if ~any(idx) && ~strcmp(materialName,'PEC')
+                            hAx.materials{end+1} = materialName;
+                            c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+                            
+                            if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
+                                hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+                                if hAx.ColorOrderIndex > length(hAx.ColorOrder) 
+                                    hAx.ColorOrderIndex = 1;
+                                end
+                                c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+                            end
+                            hAx.materialColors{end+1} = c;
+                            
+                            hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+                            if hAx.ColorOrderIndex > length(hAx.ColorOrder) 
+                                hAx.ColorOrderIndex = 1;
+                            end
+                        elseif strcmp(materialName,'PEC')
+                            hAx.materials{end+1} = materialName;
+                            c = [0.6 0.6 0.6];
+                            hAx.materialColors{end+1} = c;
+                        else
+                            %idx = find(idx);
+                            c = hAx.materialColors{idx};
+                        end
+                        
+                        % Is this possible - we dont have double_ref type in matlab?
+                        %material = obj.mws.invoke('Material');
+                        %[r,g,b] = material.invoke('GetColour',materialName,r,g,b);
+                        
+                    end
+                    
+                    if v == 0 %Surface
+                        [F,P] = freeBoundary(TR);
+                        s = trisurf(F,P(:,1),P(:,2),P(:,3),'FaceColor','none','EdgeAlpha',0.9,'LineWidth',1);
+                        s = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
+                        s.Vertices = s.Vertices+0.01;
+                        s2 = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
+                        s2.Vertices = s2.Vertices-0.01;
+                    else
+                        %Volumetric
+                        s = trisurf(TR,'FaceColor',c,'EdgeColor',[0.1 0.1 0.1],'EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
+                        
+                    end
+                    pause(0.1)
+                    drawnow;
+                catch
+                    warning([componentName,':',objectName,' could not be read properly and there has not been plotted'])
+                end
+
+                
+                if nargout > 0
+                    s = hAx.Children;
+                end
+            end
+            
+        end
+        function stlname = exportSTLfile(obj,componentName,objectName,stlname)
+            if nargin == 3  %To be improved in future to export as
+                componentNameOut = strrep(componentName,'\','-');
+                objectNameOut = strrep(objectName,'\','-');
+                componentNameOut = strrep(componentNameOut,'/','-');
+                objectNameOut = strrep(objectNameOut,'/','-');
+                [~,fname] = fileparts(obj.filename); %Remove the extension if it is somehow included
+                stlname = fullfile(fullfile(obj.folder,fname),[componentNameOut,'-',objectNameOut,'.stl']);
+            else
+                [direc,fname,~] = fileparts(stlname);
+                if isempty(direc)
+                    direc = fullfile(obj.folder,obj.filename);
+                end
+                stlname = fullfile(direc,[fname,'.stl']);
+            end
+            STL = obj.mws.invoke('STL');
+            STL.invoke('Reset');
+            STL.invoke('FileName',sprintf('%s',stlname));
+            STL.invoke('Name',sprintf('%s',objectName));
+            STL.invoke('Component',sprintf('%s',componentName));
+            STL.invoke('ScaleToUnit',true);
+            STL.invoke('ExportFileUnits','mm');
+            STL.invoke('ExportFromActiveCoordinateSystem',false);
+            STL.invoke('Write'); %Write STL file
             
         end
     end
