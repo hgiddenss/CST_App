@@ -50,9 +50,22 @@ CST.save; %We need to save file for this to work
 %%
 
 hAx = axes('parent',figure);
-CST.drawObjectMatlab('axes',hAx);
+s = CST.drawObjectMatlab('axes',hAx);
 
 hAx.XLim = [-1 21];
 hAx.YLim = [-1 21];
 hAx.ZLim = [-1 11];
 axis off
+
+
+%% Play around with lighting effects...
+hlink = linkprop(s,'FaceLighting','AmbientStrength','DiffuseStrength',...
+    'SpecularStrength','SpecularExponent','BackFaceLighting');
+
+lightangle(80,30)
+s(1).FaceLighting = 'gouraud';
+s(1).AmbientStrength = 0.3;
+s(1).DiffuseStrength = 0.8;
+s(1).SpecularStrength = 0.9;
+s(1).SpecularExponent = 25;
+s(1).BackFaceLighting = 'lit';

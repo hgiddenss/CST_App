@@ -76,6 +76,8 @@ classdef CST_MicrowaveStudio < handle
     %   https://uk.mathworks.com/matlabcentral/fileexchange/67731-hgiddenss-cst_app
     %   https://github.com/hgiddenss/CST_App
     %
+    %   Links: https://www.cst.com/products/cstmws
+    %
     %   Copyright: Henry Giddens 2018, Antennas and Electromagnetics
     %   Group, Queen Mary University London, 2018 (For further help,
     %   functionality requests, and bug fixes contact h.giddens@qmul.ac.uk)
@@ -101,7 +103,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.3';
+        version = '1.2.4';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -1588,8 +1590,6 @@ classdef CST_MicrowaveStudio < handle
             else
                 idStrings = filenames(ffm | m3d);
             end
-            
-            
         end
         function [s] = drawObjectMatlab(obj,varargin)
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
@@ -1601,20 +1601,20 @@ classdef CST_MicrowaveStudio < handle
             % drawObjectMatlab(obj,paramName,value) accepts the following
             % parameter/value input arguments:
             %   Param               Value
-            % 'ComponentName'      Name of CST Component 
+            % 'ComponentName'      Name of CST Component
             % 'ObjectName'         Name of CST Object
             % 'Color'              Color to plot the specified object. If
             %                      no color is input, each material will be
             %                      plotted in a new color corresponding to
-            %                      the figure ColorOrder properties. 
+            %                      the figure ColorOrder properties.
             % 'axes'               Handle to the axes to be plotted in
-            % 
+            %
             
             
             p = inputParser;
             p.addParameter('componentName',[]);
             p.addParameter('objectName',[]);
-            %p.addParameter('normalTolerance',[]);
+            p.addParameter('normalTolerance',25);
             %p.addParameter('surfaceTolerance',[]);
             p.addParameter('color',[]);
             p.addParameter('axes',gca);
@@ -1628,7 +1628,7 @@ classdef CST_MicrowaveStudio < handle
             
             solid = obj.mws.invoke('Solid');
             numShapes = solid.invoke('GetNumberOfShapes');
-            
+            normalTolerance = p.Results.normalTolerance;
             
             if isempty(p.Results.objectName)
                 allObjectNames = cell(numShapes,1);
@@ -1680,79 +1680,93 @@ classdef CST_MicrowaveStudio < handle
                 %stl = obj.exportSTLfile(componentName,objectName);
             else
                 try
-                    stl = obj.exportSTLfile(componentName,objectName);
+                    stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',normalTolerance);
                     TR = stlread(stl);
                     delete(stl);
+                catch
+                    try
+                        %If couldnt read the previous STL file, try
+                        %exporting with greater Accuracy
+                        stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',10);
+                        TR = stlread(stl);
+                        delete(stl);
+                    catch
+                        try  %#ok<TRYNC> in case error occurs in reading the stl file, not writing it, then delete the file...
+                            delete(stl);
+                        end
+                        warning([componentName,':',objectName,' could not be read properly and there has not been plotted'])
+                        return
+                    end
+                end
+                
+                c = p.Results.color;
+                if isempty(c)
+                    %plot based on material the matlab axis colororder
+                    %until i can work out how to extract color from CST
                     
-                    c = p.Results.color;
-                    if isempty(c)
-                        %plot based on material the matlab axis colororder
-                        %until i can work out how to extract color from CST
+                    materialName = solid.invoke('GetMaterialNameForShape',[componentName,':',objectName]);
+                    
+                    %add new properties for axis so the same materials are
+                    %always plotted in the same colors
+                    if ~isprop(hAx,'materials')
+                        hAx.addprop('materials');
+                    end
+                    if ~isprop(hAx,'materialColors')
+                        hAx.addprop('materialColors');
+                    end
+                    
+                    previousMaterials = hAx.materials;
+                    idx = strcmp(previousMaterials,materialName);
+                    
+                    if ~any(idx) && ~strcmp(materialName,'PEC')
+                        hAx.materials{end+1} = materialName;
+                        c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
                         
-                        materialName = solid.invoke('GetMaterialNameForShape',[componentName,':',objectName]);
-                        
-                        %add new properties for axis so the same materials are
-                        %always plotted in the same colors
-                        if ~isprop(hAx,'materials')
-                            hAx.addprop('materials');
-                        end
-                        if ~isprop(hAx,'materialColors')
-                            hAx.addprop('materialColors');
-                        end
-                        
-                        previousMaterials = hAx.materials;
-                        idx = strcmp(previousMaterials,materialName);
-                        
-                        if ~any(idx) && ~strcmp(materialName,'PEC')
-                            hAx.materials{end+1} = materialName;
-                            c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                            
-                            if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
-                                hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                                if hAx.ColorOrderIndex > length(hAx.ColorOrder) 
-                                    hAx.ColorOrderIndex = 1;
-                                end
-                                c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                            end
-                            hAx.materialColors{end+1} = c;
-                            
+                        if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
                             hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                            if hAx.ColorOrderIndex > length(hAx.ColorOrder) 
+                            if hAx.ColorOrderIndex > length(hAx.ColorOrder)
                                 hAx.ColorOrderIndex = 1;
                             end
-                        elseif strcmp(materialName,'PEC')
-                            hAx.materials{end+1} = materialName;
-                            c = [0.6 0.6 0.6];
-                            hAx.materialColors{end+1} = c;
-                        else
-                            %idx = find(idx);
-                            c = hAx.materialColors{idx};
+                            c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
                         end
+                        hAx.materialColors{end+1} = c;
                         
-                        % Is this possible - we dont have double_ref type in matlab?
-                        %material = obj.mws.invoke('Material');
-                        %[r,g,b] = material.invoke('GetColour',materialName,r,g,b);
-                        
+                        hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+                        if hAx.ColorOrderIndex > length(hAx.ColorOrder)
+                            hAx.ColorOrderIndex = 1;
+                        end
+                    elseif strcmp(materialName,'PEC')
+                        hAx.materials{end+1} = materialName;
+                        c = [0.6 0.6 0.6];
+                        hAx.materialColors{end+1} = c;
+                    else
+                        %idx = find(idx);
+                        c = hAx.materialColors{idx};
                     end
                     
-                    if v == 0 %Surface
-                        [F,P] = freeBoundary(TR);
-                        s = trisurf(F,P(:,1),P(:,2),P(:,3),'FaceColor','none','EdgeAlpha',0.9,'LineWidth',1);
-                        s = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
-                        s.Vertices = s.Vertices+0.01;
-                        s2 = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
-                        s2.Vertices = s2.Vertices-0.01;
-                    else
-                        %Volumetric
-                        s = trisurf(TR,'FaceColor',c,'EdgeColor',[0.1 0.1 0.1],'EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
-                        
-                    end
-                    pause(0.1)
-                    drawnow;
-                catch
-                    warning([componentName,':',objectName,' could not be read properly and there has not been plotted'])
+                    % Is this possible - we dont have double_ref type in matlab?
+                    %material = obj.mws.invoke('Material');
+                    %[r,g,b] = material.invoke('GetColour',materialName,r,g,b);
+                    
                 end
-
+                
+                if v == 0 
+                    %Surfaces are often in the same plane as solids - e.g. patch on an antenna. 
+                    % This is a hack that avoids z-fighting(https://en.wikipedia.org/wiki/Z-fighting)
+                    % by plotting the surface twice in two very close
+                    % planes. The results mainly seem to avoid z-fighting effects
+                    [F,P] = freeBoundary(TR);
+                    trisurf(F,P(:,1),P(:,2),P(:,3),'FaceColor','none','EdgeAlpha',0.9,'LineWidth',1); %Plot the outline of the surface
+                    s = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1); %plot surface
+                    s.Vertices = s.Vertices+0.01; %Shift vertices by a small amount
+                    s2 = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1); %replot surface
+                    s2.Vertices = s2.Vertices-0.01; %Shift vertices by a small amount in other direction
+                else
+                    %Volumetric data - just plot as it is 
+                    s = trisurf(TR,'FaceColor',c,'EdgeColor',[0.1 0.1 0.1],'EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
+                end
+                pause(0.1)
+                drawnow;
                 
                 if nargout > 0
                     s = hAx.Children;
@@ -1760,8 +1774,16 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
-        function stlname = exportSTLfile(obj,componentName,objectName,stlname)
-            if nargin == 3  %To be improved in future to export as
+        function stlname = exportSTLfile(obj,componentName,objectName,varargin)
+            
+            p = inputParser;
+            p.addParameter('stlname',[])
+            p.addParameter('normalTolerance',30) %reduce for more accuracy or if error in the reading of STL file...
+            p.parse(varargin{:});
+            
+            stlname = p.Results.stlname;
+            normalTolerance = p.Results.normalTolerance;
+            if isempty(stlname)  %To be improved in future to export as
                 componentNameOut = strrep(componentName,'\','-');
                 objectNameOut = strrep(objectName,'\','-');
                 componentNameOut = strrep(componentNameOut,'/','-');
@@ -1775,15 +1797,26 @@ classdef CST_MicrowaveStudio < handle
                 end
                 stlname = fullfile(direc,[fname,'.stl']);
             end
+            %This should not be added to history list so just call object
+            %methods indivdually
             STL = obj.mws.invoke('STL');
             STL.invoke('Reset');
-            STL.invoke('FileName',sprintf('%s',stlname));
-            STL.invoke('Name',sprintf('%s',objectName));
-            STL.invoke('Component',sprintf('%s',componentName));
+            STL.invoke('FileName',stlname);
+            STL.invoke('Name',objectName);
+            STL.invoke('Component',componentName);
             STL.invoke('ScaleToUnit',true);
             STL.invoke('ExportFileUnits','mm');
             STL.invoke('ExportFromActiveCoordinateSystem',false);
-            STL.invoke('Write'); %Write STL file
+            STL.invoke('NormalTolerance',normalTolerance);
+            try
+                STL.invoke('Write'); %Write STL file
+            catch
+                %possibly an invalid filename if user has used '.' in the
+                %name of the CST project path
+                stlname = tempname;
+                STL.invoke('FileName',stlname);
+                STL.invoke('Write'); %Write STL file
+            end
             
         end
     end
