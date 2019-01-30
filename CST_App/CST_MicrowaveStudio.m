@@ -53,10 +53,14 @@ classdef CST_MicrowaveStudio < handle
     %
     %   --Result Methods--
     %   getSParameters
+    %   getPortSignals
     %   getFarfield
     %   getEFieldVector
     %   getMeshInfo
     %   getFieldIDStrings
+    %
+    %   --Plotting methods--
+    %   drawObjectMatlab
     %
     %   --Other--
     %   addToHistory
@@ -103,7 +107,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.4';
+        version = '1.2.5';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -1156,13 +1160,73 @@ classdef CST_MicrowaveStudio < handle
                     sparam(:,i) = s_real + 1i*s_im; %#ok<AGROW>
                     
                 catch err
-                    warning('Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
+                    warning('CSTMicrowaveSutdio:NoDataAvailable','Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
                     rethrow(err);
                 end
             end
             if numel(sFileType) == 1
                 sFileType = sFileType{1};
             end
+        end
+        function [time,signal,sigID] = getPortSignals(obj,varargin)
+            % [time,signal,sigID] = getPortSignals(obj,varargin) returns
+            % the time and singal data from all the port signals rom the
+            % simulation along with the string data indicating the type of
+            % signal. Sig
+            % 
+            % Example
+            % [time,signal,sigID] = CST.getPortSignals();
+            % plot(time(:,1),signal(:,1));
+            % hold on
+            % plot(time(:,2),signal(:,2));
+            % legend(sigID)
+            %
+            % See also: CST_MicrowaveStudio, getSParameters
+            
+            p = inputParser;
+            p.addParameter('port',[])
+            p.parse(varargin{:});
+            
+            obj.mws.invoke('SelectTreeItem','1D Results\Port signals');
+            
+            plot1D = obj.mws.invoke('Plot1D');
+            nCurves = plot1D.invoke('GetNumberOfCurves');
+            
+            if nCurves == 0
+                time = [];
+                signal = [];
+                sigID = [];
+                warning('CSTMicrowaveSutdio:NoDataAvailable','No signals detected - returning empty values')
+                return
+            end
+            
+            sigID = cell(0,1);
+            
+            for i = 1:nCurves
+                fname = plot1D.invoke('GetCurveFileName',i-1);
+                
+                [~,sigID{end+1},~] = fileparts(fname); %#ok<AGROW>
+                %remove the c in sFileType - is this always the case?
+                %pSignal{end} = pSignal{end}(2:end);
+                result1D = obj.mws.invoke('Result1D',fname);
+                
+                try
+                    time(:,i) = result1D.invoke('GetArray','x'); %#ok<AGROW>      %This will fail if curves have different numbers of points 
+                    signal(:,i) = result1D.invoke('GetArray','y'); %#ok<AGROW>    - but this is unlikely/impossible in TD simulation
+
+                catch err
+                    warning('Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
+                    rethrow(err);
+                end
+            end
+            if numel(sigID) == 1
+                sigID = sigID{1};
+            end
+            
+            %if numel(uniquetol(time(:),1e-5)) == length(time)
+            %    time = time(:,1)
+            %end
+            
         end
         function [Eabs,Etheta_am,Ephi_am,Etheta_ph,Ephi_ph] = getFarField(obj,freq,theta,phi,varargin)
             % CST.getFarField(freq,theta,phi) returns the Etheta and EPhi
