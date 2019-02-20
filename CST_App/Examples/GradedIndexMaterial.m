@@ -10,11 +10,13 @@ s = surf(X,Y,n);
 view([0 90])
 s.EdgeColor = 'none';
 cbar = colorbar;
+drawnow
+pause(0.1)
 
 
 CST = CST_MicrowaveStudio(cd,'GradedIndex.cst');  %Note - file will only be saved if CST.save is called
 
-map = jet(length(n));
+map = cbrewer('div','Spectral',length(n));
 for i = 1:length(n)
     C = (map(i,:));
     material = ['Material',num2str(i)];
