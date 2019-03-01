@@ -107,7 +107,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.6';
+        version = '1.2.7';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -135,6 +135,9 @@ classdef CST_MicrowaveStudio < handle
                         'I tried to return the active microwave studio session, but it appears that no proects are currently open');
                 end
                 [obj.folder,obj.filename] = fileparts(obj.mws.invoke('GetProjectPath','Project'));
+                
+                obj.installMacros; %Check for and install new macros if new download has happened
+                
                 fprintf('CST_MicrowaveStudio Successfully opened. Active microwave studio project is:\n%s\\%s.cst\n',obj.folder,obj.filename)
                 return
                 
@@ -150,7 +153,7 @@ classdef CST_MicrowaveStudio < handle
                     error('CST_MicrowaveStudio:wrongFileExtension','File extension must be .CST')
                 end
             end
-            obj.filename = [filename,'.cst'];
+            obj.filename = [filename];
             
             ff = fullfile(obj.folder,obj.filename);
             
@@ -197,7 +200,14 @@ classdef CST_MicrowaveStudio < handle
                     ]);
                 
                 obj.mws.invoke('addToHistory','Set Background Material',VBA);
+                
+                %Turn off the the working plane (which isnt needed for programatic control of CST)
+                plot = obj.mws.invoke('plot');
+                plot.invoke('DrawWorkplane','false')
+                
             end
+            
+            obj.installMacros; %Check for and install new macros if new download has happened
         end
         function setUpdateStatus(obj,status)
             %CST.setUpdateStatus sets the status of the addToHistoryList property
@@ -235,7 +245,7 @@ classdef CST_MicrowaveStudio < handle
             if ~exist(obj.folder,'file') == 7
                 makedir(obj.folder);
             end
-            obj.mws.invoke('saveas',fullfile(obj.folder,obj.filename),'false');
+            obj.mws.invoke('saveas',fullfile(obj.folder,[obj.filename,'.cst']),'false');
         end
         function closeProject(obj)
             obj.mws.invoke('quit');
@@ -385,6 +395,12 @@ classdef CST_MicrowaveStudio < handle
             % individually.
             % See SinusoidSurface example for extra information
             obj.update(['Merge Common Materials:',component],['Solid.MergeMaterialsOfComponent "',component,'"']);
+        end
+        function insertObject(obj,object1,object2)
+            %Insert objects into each other
+            VBA = sprintf('Solid.Insert "%s", "%s"',object1,object2);
+            obj.update(sprintf(['Boolean Insert Shapes:%s,%s',object1,object2]),VBA);
+            
         end
         function addNormalMaterial(obj,name,Eps,Mue,C)
             %Add a new 'Normal' material to the CST project
@@ -1388,15 +1404,36 @@ classdef CST_MicrowaveStudio < handle
             %position_phi   = ff.invoke('GetList','Point_P');
             
         end
-        function [meshOut] = getMeshInfo(obj)
+        function [meshOut] = getMeshInfo(obj,type)
+            if nargin == 1
+                type = 'all';
+            end
+            
             if obj.solver == "f"
+                if ~strcmpi(type,'limits')
                 error('CST_MicrowaveStudio:getMeshPoints:SolverTypeError',...
                     'This function is currently not available for results from the frequency domain solver');
+                end
             end
+            
             
             mesh = obj.mws.invoke('Mesh');
             nP = mesh.invoke('GetNP');
             
+            if strcmpi(type,'limits')
+                X(1) = mesh.invoke('GetXPos',0);
+                Y(1) = mesh.invoke('GetYPos',0);
+                Z(1) = mesh.invoke('GetZPos',0);
+                
+                X(2) = mesh.invoke('GetXPos',nP-1);
+                Y(2) = mesh.invoke('GetYPos',nP-1);
+                Z(2) = mesh.invoke('GetZPos',nP-1);
+                
+                meshOut = struct('X',X,'Y',Y,'Z',Z,'meshPoints',nP);
+                return
+            elseif ~strcmpi(type,'all')
+                error('CST_MicrowaveStudio:unrecognisedCommand','The input argument "type" must be a string that is etiher "all" or "limits"')
+            end
             X = zeros(nP,1);
             Y = zeros(nP,1);
             % If we just try to get every mesh point for each axis, it can
@@ -1720,7 +1757,7 @@ classdef CST_MicrowaveStudio < handle
                 idStrings = filenames(ffm | m3d);
             end
         end
-        function [s] = drawObjectMatlab(obj,varargin)
+        function [s,l] = drawObjectMatlab(obj,varargin)
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
             % a matlab axes.
             % s = drawObjectMatlab() attempts to plot all objects from all
@@ -1744,9 +1781,12 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('componentName',[]);
             p.addParameter('objectName',[]);
             p.addParameter('normalTolerance',25);
-            %p.addParameter('surfaceTolerance',[]);
             p.addParameter('color',[]);
             p.addParameter('axes',gca);
+            p.addParameter('transparency',0.5);
+            p.addParameter('featureEdgeTol',pi/6);
+            p.addParameter('boundingBox',true);
+            p.addParameter('excludeObjects',[])
             
             p.parse(varargin{:});
             
@@ -1754,12 +1794,23 @@ classdef CST_MicrowaveStudio < handle
             hAx.NextPlot = 'add'; %hold on
             view(3);
             axis(hAx,'equal');
+            f_aplha = p.Results.transparency;
             
             solid = obj.mws.invoke('Solid');
             numShapes = solid.invoke('GetNumberOfShapes');
             normalTolerance = p.Results.normalTolerance;
             
+            %If the objectName is empty, then either draw all objects in a
+            %particular component, or all objects in the entire project
             if isempty(p.Results.objectName)
+                %if no objects specified, retrieve and plot the simulation
+                %boundaries first, then loop through and plot all the
+                %components and objects
+                
+                if strcmp(hAx.Visible,'on')
+                    hAx.Visible = 'off';
+                end
+                
                 allObjectNames = cell(numShapes,1);
                 for iShape = 0:numShapes-1
                     allObjectNames{iShape+1} = solid.invoke('GetNameOfShapeFromIndex',iShape);
@@ -1771,8 +1822,18 @@ classdef CST_MicrowaveStudio < handle
                     objectName = c{2};
                     
                     %If no component name was input, loop through and draw
-                    %all objects in the project
+                    %all objects in the project. Plot Bounding box if it
+                    %has been requested.
                     if isempty(p.Results.componentName)
+                        if p.Results.boundingBox
+                            [X,Y,Z] = obj.getBoundaryLimits;
+                            plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(1),'linestyle','--','color',[0.4 0.4 0.4]);
+                            plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(2),'linestyle','--','color',[0.4 0.4 0.4]);
+                            plot3([X(1) X(1)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                            plot3([X(2) X(2)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                            plot3([X(1) X(1)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                            plot3([X(2) X(2)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                        end
                         varargin{end+1} = 'componentName'; %#ok<AGROW>
                         varargin{end+1} = componentName; %#ok<AGROW>
                         varargin{end+1} = 'objectName'; %#ok<AGROW>
@@ -1789,12 +1850,29 @@ classdef CST_MicrowaveStudio < handle
                     end
                 end
                 if nargout > 0
-                    s = hAx.Children;
+                    children = hAx.Children;
+                    idx = arrayfun(@(x)isa(x,'matlab.graphics.chart.primitive.Line'),children);
+                    s = children(~idx);
+                    if nargout > 1
+                        l = children(~idx);
+                    end
+                end
+                
+                if strcmp(hAx.Visible,'off')
+                    hAx.Visible = 'on';
                 end
                 return
             elseif isempty(p.Results.componentName)
                 error('Missing component name');
             end %object name and component name must both be input in the inputparser, check that component exists and, if so draw...
+            
+            if ~isempty(p.Results.excludeObjects)
+                %check if the current object is to be excluded
+                if any(strcmp([p.Results.componentName,':',p.Results.objectName],p.Results.excludeObjects))
+                    return
+                end
+
+            end
             
             if ~solid.invoke('DoesExist',[p.Results.componentName,':',p.Results.objectName])
                 error(['"',p.Results.componentName,':',p.Results.objectName,'" does not exist in the CST microwave studio model'])
@@ -1805,103 +1883,145 @@ classdef CST_MicrowaveStudio < handle
             
             v = solid.invoke('getVolume',[componentName,':',objectName]);
             
-            if v < 0
-                %stl = obj.exportSTLfile(componentName,objectName);
-            else
+            
+            try
+                stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',normalTolerance);
+                TR = stlread(stl);
+                delete(stl);
+            catch
                 try
-                    stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',normalTolerance);
+                    %If couldnt read the previous STL file, try
+                    %exporting with greater Accuracy
+                    stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',10);
                     TR = stlread(stl);
                     delete(stl);
                 catch
-                    try
-                        %If couldnt read the previous STL file, try
-                        %exporting with greater Accuracy
-                        stl = obj.exportSTLfile(componentName,objectName,'NormalTolerance',10);
-                        TR = stlread(stl);
+                    try  %#ok<TRYNC> in case error occurs in reading the stl file, not writing it, then delete the file...
                         delete(stl);
-                    catch
-                        try  %#ok<TRYNC> in case error occurs in reading the stl file, not writing it, then delete the file...
-                            delete(stl);
-                        end
-                        warning([componentName,':',objectName,' could not be read properly and there has not been plotted'])
-                        return
                     end
-                end
-                
-                c = p.Results.color;
-                if isempty(c)
-                    %plot based on material the matlab axis colororder
-                    %until i can work out how to extract color from CST
-                    
-                    materialName = solid.invoke('GetMaterialNameForShape',[componentName,':',objectName]);
-                    
-                    %add new properties for axis so the same materials are
-                    %always plotted in the same colors
-                    if ~isprop(hAx,'materials')
-                        hAx.addprop('materials');
-                    end
-                    if ~isprop(hAx,'materialColors')
-                        hAx.addprop('materialColors');
-                    end
-                    
-                    previousMaterials = hAx.materials;
-                    idx = strcmp(previousMaterials,materialName);
-                    
-                    if ~any(idx) && ~strcmp(materialName,'PEC')
-                        hAx.materials{end+1} = materialName;
-                        c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                        
-                        if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
-                            hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                            if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-                                hAx.ColorOrderIndex = 1;
-                            end
-                            c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                        end
-                        hAx.materialColors{end+1} = c;
-                        
-                        hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                        if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-                            hAx.ColorOrderIndex = 1;
-                        end
-                    elseif strcmp(materialName,'PEC')
-                        hAx.materials{end+1} = materialName;
-                        c = [0.6 0.6 0.6];
-                        hAx.materialColors{end+1} = c;
-                    else
-                        %idx = find(idx);
-                        c = hAx.materialColors{idx};
-                    end
-                    
-                    % Is this possible - we dont have double_ref type in matlab?
-                    %material = obj.mws.invoke('Material');
-                    %[r,g,b] = material.invoke('GetColour',materialName,r,g,b);
-                    
-                end
-                
-                if v == 0 
-                    %Surfaces are often in the same plane as solids - e.g. patch on an antenna. 
-                    % This is a hack that avoids z-fighting(https://en.wikipedia.org/wiki/Z-fighting)
-                    % by plotting the surface twice in two very close
-                    % planes. The results mainly seem to avoid z-fighting effects
-                    [F,P] = freeBoundary(TR);
-                    trisurf(F,P(:,1),P(:,2),P(:,3),'FaceColor','none','EdgeAlpha',0.9,'LineWidth',1); %Plot the outline of the surface
-                    s = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1); %plot surface
-                    s.Vertices = s.Vertices+0.01; %Shift vertices by a small amount
-                    s2 = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1); %replot surface
-                    s2.Vertices = s2.Vertices-0.01; %Shift vertices by a small amount in other direction
-                else
-                    %Volumetric data - just plot as it is 
-                    s = trisurf(TR,'FaceColor',c,'EdgeColor',[0.1 0.1 0.1],'EdgeAlpha',0.2,'parent',hAx,'FaceAlpha',1);
-                end
-                pause(0.1)
-                drawnow;
-                
-                if nargout > 0
-                    s = hAx.Children;
+                    warning([componentName,':',objectName,' could not be read properly and there has not been plotted'])
+                    return
                 end
             end
             
+            c = p.Results.color;
+            if isempty(c)
+                %plot based on material the matlab axis colororder
+                %until i can work out how to extract color from CST
+                
+                materialName = solid.invoke('GetMaterialNameForShape',[componentName,':',objectName]);
+                
+                %add new properties for axis so the same materials are
+                %always plotted in the same colors
+                if ~isprop(hAx,'materials')
+                    hAx.addprop('materials');
+                    hAx.addprop('materialColors');
+                    
+                    
+                    [materialNames,colors] =  obj.getMaterialColors;
+                    hAx.materials = materialNames;
+                    hAx.materialColors = colors;
+                end
+                
+                previousMaterials = hAx.materials;
+                idx = strcmpi(previousMaterials,materialName);
+                c = hAx.materialColors(idx,:);
+%                 if ~any(idx) && ~strcmp(materialName,'PEC')
+%                     hAx.materials{end+1} = materialName;
+%                     c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+%                     
+%                     if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
+%                         hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+%                         if hAx.ColorOrderIndex > length(hAx.ColorOrder)
+%                             hAx.ColorOrderIndex = 1;
+%                         end
+%                         c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+%                     end
+%                     hAx.materialColors{end+1} = c;
+%                     
+%                     hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+%                     if hAx.ColorOrderIndex > length(hAx.ColorOrder)
+%                         hAx.ColorOrderIndex = 1;
+%                     end
+%                 elseif strcmp(materialName,'PEC')
+%                     hAx.materials{end+1} = materialName;
+%                     c = [0.6 0.6 0.6];
+%                     hAx.materialColors{end+1} = c;
+%                 else
+%                     %idx = find(idx);
+%                     c = hAx.materialColors{idx};
+%                 end
+%                 
+                
+            end
+            
+            if v == 0
+                %Surfaces are often in the same plane as solids - e.g. patch on an antenna.
+                % This is a hack that avoids z-fighting(https://en.wikipedia.org/wiki/Z-fighting)
+                % by plotting the surface twice in two very close
+                % planes. The results mainly seem to avoid z-fighting effects
+                [F,P] = freeBoundary(TR);
+                trisurf(F,P(:,1),P(:,2),P(:,3),'FaceColor','none','EdgeAlpha',0.9,'LineWidth',1); %Plot the outline of the surface
+                s = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.4,'parent',hAx,'FaceAlpha',1); %plot surface
+                s2 = trisurf(TR,'FaceColor',c,'EdgeColor','none','EdgeAlpha',0.4,'parent',hAx,'FaceAlpha',1); %replot surface
+                
+                if all(P(:,1))  %shift first column
+                    s.Vertices(:,1) = s.Vertices(:,1)+0.01; %Shift vertices by a small amount
+                    s2.Vertices(:,1) = s2.Vertices(:,1)-0.01; %Shift vertices by a small amount in other direction
+                elseif all(P(:,2))
+                    s.Vertices(:,2) = s.Vertices(:,2)+0.01; %Shift vertices by a small amount
+                    s2.Vertices(:,2) = s2.Vertices(:,2)-0.01; %Shift vertices by a small amount in other direction
+                elseif all(P(:,3))
+                    s.Vertices(:,3) = s.Vertices(:,3)+0.01; %Shift vertices by a small amount
+                    s2.Vertices(:,3) = s2.Vertices(:,3)-0.01; %Shift vertices by a small amount in other direction
+                else
+                    disp('Is this really a surface?');
+                end
+            else
+                %Volumetric data - just plot as it is
+                s = trisurf(TR,'FaceColor',c,'EdgeColor',[0.1 0.1 0.1],'EdgeAlpha',0,'parent',hAx,'FaceAlpha',f_aplha);
+                x = TR.Points(:,1);
+                y = TR.Points(:,2);
+                z = TR.Points(:,3);
+                F = featureEdges(TR,p.Results.featureEdgeTol)';
+                plot3(x(F),y(F),z(F),'LineWidth',1,'color',[0 0 0 f_aplha]);
+            end
+            if strcmp(hAx.Visible,'on')
+                pause(0.01)
+                drawnow;
+            end
+            
+            if nargout > 0
+                children = hAx.Children;
+                idx = arrayfun(@(x)isa(x,'matlab.graphics.chart.primitive.Line'),children);
+                s = children(~idx);
+                if nargout > 1
+                    l = children(~idx);
+                end
+            end
+
+            
+        end
+        function [X,Y,Z ] = getBoundaryLimits(obj)
+            obj.runMacro('CST_App Macros\getBoundaryLimits');
+            boundaryFile = fullfile(obj.folder,obj.filename,'\Model\3D\boundaryLimits.txt');
+            data = dlmread(boundaryFile);
+            delete(boundaryFile);
+            X = [data(1) data(2)];
+            Y = [data(3) data(4)];
+            Z = [data(5) data(6)];
+        end
+        function [materialNames,colors] = getMaterialColors(obj)
+            obj.runMacro('CST_App Macros\getMaterialColors');
+            materialColorFile = fullfile(obj.folder,obj.filename,'\Model\3D\materialColors.txt');
+            materialData = importdata(materialColorFile);
+            delete(materialColorFile);
+            materialNames = materialData.textdata;
+            colors = materialData.data;
+        end
+        function runMacro(obj,macroName)
+            
+            obj.mws.invoke('RunMacro',macroName);
         end
         function stlname = exportSTLfile(obj,componentName,objectName,varargin)
             
@@ -1950,6 +2070,35 @@ classdef CST_MicrowaveStudio < handle
         end
     end
     methods (Hidden, Access = protected)
+        function installMacros(obj)
+            direc = obj.mws.invoke('GetMacroPathFromIndex',0);
+            macroDir = fullfile(direc,'CST_App Macros');
+            if ~isfolder(fullfile(direc,'CST_App Macros'))
+                mkdir(macroDir)
+                fprintf('New Macro Directory Created: \n%s\n',macroDir)
+            end
+            
+            existingMacroInfo = dir(macroDir);
+            existingMacroInfo(1:2) = [];
+            macroFilePath = fileparts(mfilename('fullpath'));
+            macroFilePath = fullfile(macroFilePath,'macros');
+            allMacros = dir(macroFilePath);
+            allMacros(1:2) = [];
+            existingMacroFilenames = cell(numel(existingMacroInfo),1);
+            for i = 1:numel(existingMacroInfo)
+                existingMacroFilenames{i} = existingMacroInfo(i).name;
+            end
+            for i = 1:numel(allMacros)
+                if ~any(strcmp(allMacros(i).name,existingMacroFilenames))
+                    [~,~,extension] = fileparts(allMacros(i).name);
+                    if strcmpi(extension,'.mcr')
+                        macroFileToCopy = fullfile(macroFilePath,allMacros(i).name);
+                        copyfile(macroFileToCopy,macroDir); %Install macro in the path
+                        fprintf('New Macro Installed: \n%s\n',allMacros(i).name)
+                    end
+                end
+            end
+        end
         function update(obj,commandString,VBAstring)
             if obj.autoUpdate
                 obj.addToHistory(commandString,VBAstring);

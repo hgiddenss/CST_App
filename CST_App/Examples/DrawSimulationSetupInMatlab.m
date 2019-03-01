@@ -13,7 +13,7 @@
 CST = CST_MicrowaveStudio(cd,'DrawInMatlabExample.cst');
 
 %Create some gemoeteries
-nPix = 25;
+nPix = 10;
 pixels = logical(randi(2,nPix)-1);
 unitCellSize = 20; %unit cell 20 x 20 mm
 subHeight = 0.8;
@@ -42,9 +42,11 @@ CST.addToHistory;
 CST.setUpdateStatus(true);
 
 CST.addNormalMaterial('ABS',2.7,1,[0.2157 0.4941 0.7216])
-CST.addSphere(10,10,7.5,2.5,0,0,'S3','component2','ABS','orientation','x')
+CST.addSphere(10,10,7.5,2.5,0,0,'Sphere1','component2','ABS','orientation','x')
 
-CST.addCylinder(5,4,'z',10,10,[3 10],name,'component2','ABS')
+
+CST.addNormalMaterial('flubber',2.7,1,[0 1 0])
+CST.addSphere(10,10,15,2.5,0,0,'Sphere2','component2','flubber','orientation','x')
 
 CST.save; %We need to save file for this to work
 %%
@@ -58,14 +60,59 @@ hAx.ZLim = [-1 11];
 axis off
 
 
-%% Play around with lighting effects...
-hlink = linkprop(s,'FaceLighting','AmbientStrength','DiffuseStrength',...
-    'SpecularStrength','SpecularExponent','BackFaceLighting');
+% Play around with lighting effects...
+hlink = linkprop(s,{'FaceLighting','AmbientStrength','DiffuseStrength',...
+    'SpecularStrength','SpecularExponent','BackFaceLighting'});
 
-lightangle(80,30)
+
+lightangle(0,-30)
 s(1).FaceLighting = 'gouraud';
 s(1).AmbientStrength = 0.3;
 s(1).DiffuseStrength = 0.8;
 s(1).SpecularStrength = 0.9;
 s(1).SpecularExponent = 25;
 s(1).BackFaceLighting = 'lit';
+
+hAx.View = [-100  25];
+L = Light(hAx);
+L.Position = [0 0 -1];
+%% Plot some more objects but exclude the blue sphere
+
+CST.addNormalMaterial('flubber',2.7,1,[0 1 0])
+const = 4;
+CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere1','component3','flubber','orientation','x')
+CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere2','component3','flubber','orientation','x')
+CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere3','component3','flubber','orientation','x')
+CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere4','component3','flubber','orientation','x')
+CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere5','component3','flubber','orientation','x')
+CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere6','component3','flubber','orientation','x')
+CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere7','component3','flubber','orientation','x')
+CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere8','component3','flubber','orientation','x')
+CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere9','component3','flubber','orientation','x')
+CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere10','component3','flubber','orientation','x')
+CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere11','component3','flubber','orientation','x')
+CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere12','component3','flubber','orientation','x')
+
+CST.mergeCommonSolids('component3');
+%%
+fig = figure('color',[1 1 1]);
+hAx = axes('parent',fig);
+s = CST.drawObjectMatlab('axes',hAx,'excludeObject',{'component2:Sphere1'},'transparency',1,'boundingBox',false);
+
+axis off
+
+hlink = linkprop(s,{'FaceLighting','AmbientStrength','DiffuseStrength',...
+    'SpecularStrength','SpecularExponent','BackFaceLighting'});
+
+lightangle(10,30)
+lightangle(10,-30)
+s(1).FaceLighting = 'gouraud';
+s(1).AmbientStrength = 0.5;
+s(1).DiffuseStrength = 0.4;
+s(1).SpecularStrength = 0.9;
+s(1).SpecularExponent = 25;
+s(1).BackFaceLighting = 'lit';
+
+hAx.View = [-100  25];
+
+
