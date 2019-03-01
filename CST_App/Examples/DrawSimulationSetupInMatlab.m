@@ -13,7 +13,7 @@
 CST = CST_MicrowaveStudio(cd,'DrawInMatlabExample.cst');
 
 %Create some gemoeteries
-nPix = 10;
+nPix = 15;
 pixels = logical(randi(2,nPix)-1);
 unitCellSize = 20; %unit cell 20 x 20 mm
 subHeight = 0.8;
@@ -44,9 +44,7 @@ CST.setUpdateStatus(true);
 CST.addNormalMaterial('ABS',2.7,1,[0.2157 0.4941 0.7216])
 CST.addSphere(10,10,7.5,2.5,0,0,'Sphere1','component2','ABS','orientation','x')
 
-
-CST.addNormalMaterial('flubber',2.7,1,[0 1 0])
-CST.addSphere(10,10,15,2.5,0,0,'Sphere2','component2','flubber','orientation','x')
+CST.addCylinder(5,4,'z',10,10,[3 10],'Cylinder1','component2','ABS')
 
 CST.save; %We need to save file for this to work
 %%
@@ -74,8 +72,8 @@ s(1).SpecularExponent = 25;
 s(1).BackFaceLighting = 'lit';
 
 hAx.View = [-100  25];
-L = Light(hAx);
-L.Position = [0 0 -1];
+L = light(hAx);
+L.Position = [-1 -1 -0.5];
 %% Plot some more objects but exclude the blue sphere
 
 CST.addNormalMaterial('flubber',2.7,1,[0 1 0])
