@@ -78,21 +78,15 @@ L.Position = [-1 -1 -0.5];
 
 CST.addNormalMaterial('flubber',2.7,1,[0 1 0])
 const = 4;
-CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere1','component3','flubber','orientation','x')
-CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere2','component3','flubber','orientation','x')
-CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere3','component3','flubber','orientation','x')
-CST.addSphere(10+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere4','component3','flubber','orientation','x')
-CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere5','component3','flubber','orientation','x')
-CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere6','component3','flubber','orientation','x')
-CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere7','component3','flubber','orientation','x')
-CST.addSphere(8+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere8','component3','flubber','orientation','x')
-CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere9','component3','flubber','orientation','x')
-CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere10','component3','flubber','orientation','x')
-CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere11','component3','flubber','orientation','x')
-CST.addSphere(12+rand*const,10+rand*const,15+rand,2.5,0,0,'Sphere12','component3','flubber','orientation','x')
-
+for i = 1:5
+    for j = 1:5
+        name = ['Sphere',num2str(i),num2str(j)];
+        CST.addSphere(10+i*2+rand*const,10+j*2+rand*const,15+rand,2.5,0,0,[name,'1'],'component3','flubber','orientation','x')
+        CST.addSphere(10-i*2-rand*const,10+j*2+rand*const,15+rand,2.5,0,0,[name,'2'],'component3','flubber','orientation','x')
+    end
+end
 CST.mergeCommonSolids('component3');
-%%
+%
 fig = figure('color',[1 1 1]);
 hAx = axes('parent',fig);
 s = CST.drawObjectMatlab('axes',hAx,'excludeObject',{'component2:Sphere1'},'transparency',1,'boundingBox',false);

@@ -93,21 +93,16 @@ classdef CST_MicrowaveStudio < handle
         mws       % Handle to the microwave studio project
     end
     properties (Hidden)
-        ports = 0; %to be removed
         solver = 't';
         listeners
     end
-    %     properties (Hidden, SetObservable) %For future use
-    %         F1 = []
-    %         F2 = []
-    %     end
     properties (SetAccess = private)
         autoUpdate = true %If true, each relevant command will be added to history once function finishes executing
         VBAstring = [];     %If false, the VBA commands will be added to the VBAstring property, and the addToHistory Method must be called.
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.7';
+        version = '1.2.8';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -153,7 +148,7 @@ classdef CST_MicrowaveStudio < handle
                     error('CST_MicrowaveStudio:wrongFileExtension','File extension must be .CST')
                 end
             end
-            obj.filename = [filename];
+            obj.filename = filename;
             
             ff = fullfile(obj.folder,obj.filename);
             
@@ -203,7 +198,7 @@ classdef CST_MicrowaveStudio < handle
                 
                 %Turn off the the working plane (which isnt needed for programatic control of CST)
                 plot = obj.mws.invoke('plot');
-                plot.invoke('DrawWorkplane','false')
+                plot.invoke('DrawWorkplane','false');
                 
             end
             
@@ -478,9 +473,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 portNumber, X(1),Y(1),Z(1),X(2),Y(2),Z(2),impedance,R);
             
-            obj.update(['define discrete port: ',num2str(obj.ports+1)],VBA);
-            
-            obj.ports = obj.ports + 1; %Should this be obtained from the MWS file?
+            obj.update(['define discrete port: ',num2str(portNumber)],VBA);
         end
         function addWaveguidePort(obj,orientation,X,Y,Z,varargin)
             % Add a wave guide port to the simulation file.
@@ -554,8 +547,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 portNumber,orientation,X(1),X(2),Y(1),Y(2),Z(1),Z(2));
             
-            obj.update(['define waveguide port: ',num2str(obj.ports+1)],VBA);
-            obj.ports = obj.ports + 1; %Should this be obtained from the MWS file?
+            obj.update(['define waveguide port: ',portNumber],VBA);
         end
         function addFieldMonitor(obj,fieldType,freq)
             % Add a field monitor at specified frequency
@@ -578,7 +570,6 @@ classdef CST_MicrowaveStudio < handle
                 otherwise
                     name = [fieldType,' (f=',num2str(freq),')'];
             end
-            
             
             VBA =  sprintf(['With Monitor\n',...
                 '.Reset\n',...
@@ -696,52 +687,6 @@ classdef CST_MicrowaveStudio < handle
                 
                 
             end
-        end
-        function rotateObject(obj,componentName,objectName,rotationAngles,rotationCenter,copy,repetitions)
-            % Rotate an object in located in one of the components
-            %
-            %
-            % THIS WILL BE UPDATED IN FUTURE VERSION
-            % Currently not possible to rotate ports, faces, curves etc...
-            
-            warning('CST_MicrowaveStudio:rotateObject','The inputparameter list of rotateObject will change in a future release')
-            
-            nameStr = [componentName,':',objectName];
-            if nargin < 6
-                copy = 'False';
-            end
-            
-            if nargin < 7
-                repetitions = 1;
-            end
-            
-            if copy
-                copyStr = 'True';
-            else
-                copyStr = 'False';
-            end
-            
-            rotationAngles = obj.checkParam(rotationAngles);
-            rotationCenter = obj.checkParam(rotationCenter);
-            
-            VBA = sprintf(['With Transform\n',...
-                '.Reset\n',...
-                '.Name "%s"\n',...
-                '.Origin "Free"\n',...
-                '.Center "%s", "%s", "%s"\n',...
-                '.Angle "%s", "%s", "%s"\n',...
-                '.MultipleObjects "%s"\n',...
-                '.GroupObjects "False"\n',...
-                '.Repetitions "%d"\n',...
-                '.MultipleSelection "False"\n',...
-                '.Transform "Shape", "Rotate"\n',...
-                'End With'],...
-                nameStr,rotationCenter(1),rotationCenter(2),rotationCenter(3),...
-                rotationAngles(1),rotationAngles(2),rotationAngles(3),...
-                copyStr,repetitions);
-            
-            obj.update(['transform: rotate ',nameStr],VBA);
-            
         end
         function addPolygonBlock(obj,points,height,name,component,material,varargin)
             %add a polygon with any number of sides to the simulations
@@ -1053,6 +998,75 @@ classdef CST_MicrowaveStudio < handle
             %Check for destination component?
             
             obj.update(['transform:',name],VBA);
+        end
+        function rotateObject(obj,varargin)
+            % CST.rotateObject(objectName,rotationAngles,rotationCenter)
+            % Rotates an object defined by objectname of the format
+            % (componentName:objectName) by the rotation angle 
+            % in rotationAngles = [xrot, yrot, zrot] and the center of
+            % rotation defined be rotationCenter = [xc, yc,zc];
+            %
+            % CST.rotateObject(componentName,objectName,rotationAngles,rotationCenter)
+            % is the same as above with the component and object names
+            % split
+            % 
+            % CST.rotateObject(...,Parmaeter,Value) allows parameter/value
+            % inputs of 'Copy' (true/false) and 'repetitions (number of
+            % repetitions)
+            %
+            % This has changed since a previous version
+            
+            % Old input arg list...
+            % (obj,componentName,objectName,rotationAngles,rotationCenter,varargin)
+            
+            warning('CST_MicrowaveStudio:rotateObject',...
+                'The inputparameter list of rotateObject has recently changed and may cause errors. Please see help for correct way to use')
+            
+            if ischar(varargin{2})
+                nameStr = [varargin{1},':',varargin{2}];
+                varargin(2) = [];
+            else
+                nameStr = varargin{1};
+            end
+            [rotationAngles,rotationCenter] = deal(varargin{2:3});
+            %remove varargin(1:3)
+            varargin(1:3) = [];
+            
+            p = inputParser;
+            p.addParameter('copy',false);
+            p.addParameter('repetitions',1);
+            p.Parse(varargin{:});
+                        
+            copy = p.Results.Copy;
+            repetitions = p.Results.repetitions;
+            
+            if copy
+                copyStr = 'True';
+            else
+                copyStr = 'False';
+            end
+            
+            rotationAngles = obj.checkParam(rotationAngles);
+            rotationCenter = obj.checkParam(rotationCenter);
+            
+            VBA = sprintf(['With Transform\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Origin "Free"\n',...
+                '.Center "%s", "%s", "%s"\n',...
+                '.Angle "%s", "%s", "%s"\n',...
+                '.MultipleObjects "%s"\n',...
+                '.GroupObjects "False"\n',...
+                '.Repetitions "%d"\n',...
+                '.MultipleSelection "False"\n',...
+                '.Transform "Shape", "Rotate"\n',...
+                'End With'],...
+                nameStr,rotationCenter(1),rotationCenter(2),rotationCenter(3),...
+                rotationAngles(1),rotationAngles(2),rotationAngles(3),...
+                copyStr,repetitions);
+            
+            obj.update(['transform: rotate ',nameStr],VBA);
+            
         end
         function deleteObject(obj,objectType,objectName)
             %deleteObject(objectType,objectName)
@@ -1489,6 +1503,10 @@ classdef CST_MicrowaveStudio < handle
             % space. If the 'location' is negative, the field at the halfway
             % point in the specified plane will be returned
             %
+            % Version 1.2.8: Updated to deal with symmetery planes,
+            % outputting the field accross the whole plane where a
+            % symmetery plane has been defined.
+            %
             % Examples:
             % %Get the absolute Electric field value from a monitor at 2.5
             % %GHz in the yz plane at the 10th mesh cell along the x axis
@@ -1573,7 +1591,7 @@ classdef CST_MicrowaveStudio < handle
                     iy = 0:nY-1;
                     iy = (iy*nX)';
                     index = iy+ix;
-                    if location < 0
+                    if location < 0 %Use the halfway point
                         index = index+(round(nZ/2)-1)*nX*nY;
                     elseif location > nZ
                         warning('The specified Z location of the xy plane is larger than the number of z-plane mesh cells');
@@ -1658,7 +1676,7 @@ classdef CST_MicrowaveStudio < handle
             
             %Retrieve the actual XY,/XZ/YZ meshgrid coordinates so the
             %field can be plotted to scale
-            %This takes quite a long time, so will only be output if the
+            %This can take quite a long time, so will only be output if the
             %user requests the coordinates as output options. May be a
             %better idea to use the getMeshInfo Method if repeated calls to
             %the function are required
@@ -1705,6 +1723,50 @@ classdef CST_MicrowaveStudio < handle
                         end
                         XPos = mesh.invoke('GetXPos',index(1));
                 end
+            end
+            
+            boundary = obj.mws.invoke('Boundary');
+            % check symmetery:
+            XSym = boundary.invoke('GetXSymmetry');
+            YSym = boundary.invoke('GetYSymmetry');
+            ZSym = boundary.invoke('GetZSymmetry');
+
+            
+            
+            switch lower(plane)
+                case 'xy' %check for x and y symmetery planes
+                    if ~isequal('none',XSym)
+                        outputField = [fliplr(outputField(:,2:end)), outputField];
+                        X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
+                        XPos = [X2,XPos];
+                    end
+                    if ~isequal('none',YSym)
+                        outputField = [flipud(outputField(2:end,:)); outputField];
+                        Y2 = flipud(cumsum(diff((YPos)))*-1)+YPos(1);
+                        YPos = [Y2;YPos];
+                    end
+                case 'xz'
+                    if ~isequal('none',XSym)
+                        outputField = [fliplr(outputField(:,2:end)), outputField];
+                        X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
+                        XPos = [X2,XPos];
+                    end
+                    if ~isequal('none',ZSym)
+                        outputField = [flipud(outputField(2:end,:)); outputField];
+                        Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
+                        ZPos = [Z2;Zpos];
+                    end
+                case 'yz'
+                    if ~isequal('none',YSym)
+                        outputField = [fliplr(outputField(:,2:end)), outputField];
+                        Y2 = fliplr(cumsum(diff((YPos)))*-1)+YPos(1);
+                        YPos = [Y2,YPos];
+                    end
+                    if ~isequal('none',ZSym)
+                        outputField = [flipud(outputField(2:end,:)); outputField];
+                        Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
+                        ZPos = [Z2;ZPos];
+                    end
             end
         end
         function [idStrings] = getFieldIDStrings(obj,monitor)
