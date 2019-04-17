@@ -22,10 +22,10 @@ CST.addFieldMonitor('efield',2.5)
 CST.runSimulation;
 
 %% Retrieve the Farfield and plot
-theta = 0:5:180;
-phi = 0:5:360;
+theta = 0:2:180;
+phi = 0:2:360;
 
-[Eabs] = CST.getFarField(2.5,theta,phi,'units','directivity');
+[Eabs] = CST.getFarField(220,theta,phi,'units','directivity');
 
 
 [p,t] = meshgrid(phi,theta);
@@ -39,17 +39,17 @@ xlabel('phi');
 ylabel('theta');
 
 %Plot 3D polar pattern:
-Eabs(Eabs < -40) = -40;
-Eabs1 = Eabs+40; %Make all positive as this is used as the radius
+Eabs(Eabs < -20) = -20;
+Eabs1 = Eabs+20; %Make all positive as this is used as the radius
 
 %Spherical coordinates in Matlab have theta -90:90 rather than 0:180
-p = deg2rad(0:5:360);
-t = deg2rad(90:-5:-90);
+p = deg2rad(0:2:360);
+t = deg2rad(90:-2:-90);
 [p,t] = meshgrid(p,t);
 [X,Y,Z] = sph2cart(p,t,Eabs1);
 
 ax = axes('parent',figure);
-surf(X,Y,Z,Eabs)
+surf(X,Y,Z,Eabs,'edgealpha',0.2)
 axis equal
 axis off;
 grid off

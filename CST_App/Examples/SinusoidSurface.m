@@ -16,17 +16,22 @@ X = X*100;
 Y = Y*100;
 Z = (Z*10);
 
-figure; surf(X,Y,Z); axis equal;
+figure; hold on;
+for i = 1:8
+    [X,Y] = rotateMatrix(X,Y,45);
+surf(X,Y,Z,'facecolor',[0.8 0.8 0.8]); 
+end
+axis equal;
 
 %%
 %Use the add3DSurface function. add3DSurfaceCST triangulates the surface
 %with each triangle lying in the same plane. This then calls a method
 %called addPolygonBlock3D from the CST_MicrowaveStudio class.
 CST = CST_MicrowaveStudio(cd,'test.cst');
-%CST.setUpdateStatus(false);
+CST.setUpdateStatus(false);
 add3DSurfaceCST(CST,X,Y,Z,0,'PEC','component1');
-%CST.addToHistory;
-%CST.setUpdateStatus(true);
+CST.addToHistory;
+CST.setUpdateStatus(true);
 
 %%
 %Copy the surface and transforom so it has a thickness. We cannot simply
@@ -45,7 +50,8 @@ CST.addToHistory;
 CST.setUpdateStatus(true);
 
 CST.mergeCommonSolids('component3')
-CST.rotateObject('component3','Solid1',[0 0 45],[0 0 0],true,7);
+%%
+CST.rotateObject('component3:Solid1',[0 0 45],[0 0 0],'copy',true,'repetitions',7);
 
 CST.addCylinder(0.05*101,0,'z',0,0,[Z(1),Z(1)+1],'cylinder1','component3','PEC')
 CST.mergeCommonSolids('component3') %This will mearge everything into a single solid block

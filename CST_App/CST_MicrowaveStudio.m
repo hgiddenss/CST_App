@@ -150,7 +150,7 @@ classdef CST_MicrowaveStudio < handle
             end
             obj.filename = filename;
             
-            ff = fullfile(obj.folder,obj.filename);
+            ff = fullfile(obj.folder,[obj.filename,ext]);
             
             if exist(ff,'file') == 2
                 %If file exists, open
@@ -1035,9 +1035,9 @@ classdef CST_MicrowaveStudio < handle
             p = inputParser;
             p.addParameter('copy',false);
             p.addParameter('repetitions',1);
-            p.Parse(varargin{:});
+            p.parse(varargin{:});
                         
-            copy = p.Results.Copy;
+            copy = p.Results.copy;
             repetitions = p.Results.repetitions;
             
             if copy
@@ -1366,7 +1366,10 @@ classdef CST_MicrowaveStudio < handle
             
             if ~obj.mws.invoke('SelectTreeItem',['Farfields\',ffid])
                 error('CST_MicrowaveStudio:ResultFileDoesntExist',...
-                    'Farfield result does not exist. Please use getFieldIDStrings to determine the available 3D Field Results')
+                    ['Farfield result does not exist. Please use getFieldIDStrings to determine the available 3D Field Results.\n',...
+                    'Most FFID Strings are of the form "farfield (f=2.4)[1]". They are case sensitive.\n',...
+                    'The value returned from getFieldIDStrings may be of the form "fArFieLd (f=2.4)_1", which should be modified to read fArFieLd (f=2.4) [1]',...
+                    'before inputting as the parameter value for to ffid in the input argument list'])
             end
             
             
@@ -1501,7 +1504,8 @@ classdef CST_MicrowaveStudio < handle
             % specified plane. e.g. a 'location' = 0 in the 'XY' will
             % return the field at the first z point in the simulation
             % space. If the 'location' is negative, the field at the halfway
-            % point in the specified plane will be returned
+            % point in the specified plane will be returned. Use
+            % getMeshInfo to determine the number of cells in each plane
             %
             % Version 1.2.8: Updated to deal with symmetery planes,
             % outputting the field accross the whole plane where a
@@ -1737,36 +1741,56 @@ classdef CST_MicrowaveStudio < handle
                 case 'xy' %check for x and y symmetery planes
                     if ~isequal('none',XSym)
                         outputField = [fliplr(outputField(:,2:end)), outputField];
-                        X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
-                        XPos = [X2,XPos];
+                        if nargout > 1
+                            X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
+                            XPos = [X2,XPos];
+                        end
                     end
                     if ~isequal('none',YSym)
                         outputField = [flipud(outputField(2:end,:)); outputField];
-                        Y2 = flipud(cumsum(diff((YPos)))*-1)+YPos(1);
-                        YPos = [Y2;YPos];
+                        if nargout > 1
+                            Y2 = flipud(cumsum(diff((YPos)))*-1)+YPos(1);
+                            YPos = [Y2;YPos];
+                        end
                     end
+                    
+                    ZPos = ones(numel(YPos),numel(XPos)).*ZPos;
                 case 'xz'
                     if ~isequal('none',XSym)
                         outputField = [fliplr(outputField(:,2:end)), outputField];
-                        X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
-                        XPos = [X2,XPos];
+                        if nargout > 1
+                            X2 = fliplr(cumsum(diff((XPos)))*-1)+XPos(1);
+                            XPos = [X2,XPos];
+                        end
                     end
                     if ~isequal('none',ZSym)
                         outputField = [flipud(outputField(2:end,:)); outputField];
-                        Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
-                        ZPos = [Z2;Zpos];
+                        if nargout > 1
+                            Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
+                            ZPos = [Z2;Zpos];
+                        end
                     end
+                    XPos = XPos(:);
+                    ZPos = ZPos(:)';
+                    YPos = ones(numel(ZPos),numel(XPos)).*YPos;
                 case 'yz'
                     if ~isequal('none',YSym)
                         outputField = [fliplr(outputField(:,2:end)), outputField];
-                        Y2 = fliplr(cumsum(diff((YPos)))*-1)+YPos(1);
-                        YPos = [Y2,YPos];
+                        if nargout > 1
+                            Y2 = fliplr(cumsum(diff((YPos)))*-1)+YPos(1);
+                            YPos = [Y2,YPos];
+                        end
                     end
                     if ~isequal('none',ZSym)
                         outputField = [flipud(outputField(2:end,:)); outputField];
-                        Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
-                        ZPos = [Z2;ZPos];
+                        if nargout > 1
+                            Z2 = flipud(cumsum(diff((ZPos)))*-1)+ZPos(1);
+                            ZPos = [Z2;ZPos];
+                        end
                     end
+                    YPos = YPos(:);
+                    ZPos = ZPos(:)';
+                    XPos = ones(numel(ZPos),numel(YPos)).*XPos;
             end
         end
         function [idStrings] = getFieldIDStrings(obj,monitor)
@@ -1822,21 +1846,43 @@ classdef CST_MicrowaveStudio < handle
         function [s,l] = drawObjectMatlab(obj,varargin)
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
             % a matlab axes.
-            % s = drawObjectMatlab() attempts to plot all objects from all
+            % [s,l] = drawObjectMatlab() will plot all objects from all
             % components into the current matlab axes. s contains the
-            % graphics objects of all children to the axes. All objects
-            % plotted by this function will be surface (patch) objects
+            % graphics surface objects of all children to the axes, and l
+            % contains the line objects. 
             % drawObjectMatlab(obj,paramName,value) accepts the following
             % parameter/value input arguments:
             %   Param               Value
-            % 'ComponentName'      Name of CST Component
-            % 'ObjectName'         Name of CST Object
-            % 'Color'              Color to plot the specified object. If
+            % 'ComponentName'      Name of CST Component. If called without
+            %                      the 'ObjectName' argument, all objects
+            %                      in the specified component will be
+            %                      plotted.
+            % 'ObjectName'         Name of a specific CST Object to be
+            %                      plotted. Can only be called with the
+            %                      'componentName' argument.
+            % 'Color'              Color [R G B] to plot the specified object. If
             %                      no color is input, each material will be
-            %                      plotted in a new color corresponding to
-            %                      the figure ColorOrder properties.
+            %                      plotted in the same color they appear in CST.
             % 'axes'               Handle to the axes to be plotted in
-            %
+            % 'normalToerance'     The normal tolerance applied to curved objects
+            %                      when importing into matlab (default =
+            %                      25). This will affect the curvature of
+            %                      objects such as spheres and cylinders
+            % 'alpha'              The alpha value of all patch objects
+            %                      that will be created. This is the same
+            %                      as calling surface(...,'alpha',0.5).
+            %                      (default = 0.5)
+            % 'featureEdgeTol'     tolerance associated with plotting of
+            %                      feature edges for objects (in radians,
+            %                      default = pi/6)
+            % 'boundingBox'        true/false value on whether to plot the
+            %                      CST bounding box which terminates the
+            %                      simulation space. Will only be plotted
+            %                      in 'componentName' and 'ObjectName' are
+            %                      empty. (default = true)
+            % 'excludeObjects'     specify specific objects to be excluded
+            %                      when calling CST.drawObjectMatlab.
+            %                      e.g. CST.drawObjectMatlab('excludeObjects','component1:solid1');
             
             
             p = inputParser;
@@ -1845,7 +1891,7 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('normalTolerance',25);
             p.addParameter('color',[]);
             p.addParameter('axes',gca);
-            p.addParameter('transparency',0.5);
+            p.addParameter('alpha',0.5);
             p.addParameter('featureEdgeTol',pi/6);
             p.addParameter('boundingBox',true);
             p.addParameter('excludeObjects',[])
@@ -1856,7 +1902,7 @@ classdef CST_MicrowaveStudio < handle
             hAx.NextPlot = 'add'; %hold on
             view(3);
             axis(hAx,'equal');
-            f_aplha = p.Results.transparency;
+            f_aplha = p.Results.alpha;
             
             solid = obj.mws.invoke('Solid');
             numShapes = solid.invoke('GetNumberOfShapes');
@@ -1877,6 +1923,17 @@ classdef CST_MicrowaveStudio < handle
                 for iShape = 0:numShapes-1
                     allObjectNames{iShape+1} = solid.invoke('GetNameOfShapeFromIndex',iShape);
                 end
+                if isempty(p.Results.objectName) && p.Results.boundingBox
+                    % Recursive calls will always contain an object name. Plot Bounding box if it
+                    % has been requested.
+                    [X,Y,Z] = obj.getBoundaryLimits;
+                    plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(1),'linestyle','--','color',[0.4 0.4 0.4]);
+                    plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(2),'linestyle','--','color',[0.4 0.4 0.4]);
+                    plot3([X(1) X(1)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                    plot3([X(2) X(2)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                    plot3([X(1) X(1)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                    plot3([X(2) X(2)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
+                end
                 for iShape = 1:numel(allObjectNames)
                     c = strsplit(allObjectNames{iShape},':');
                     
@@ -1884,18 +1941,8 @@ classdef CST_MicrowaveStudio < handle
                     objectName = c{2};
                     
                     %If no component name was input, loop through and draw
-                    %all objects in the project. Plot Bounding box if it
-                    %has been requested.
+                    %all objects in the project.
                     if isempty(p.Results.componentName)
-                        if p.Results.boundingBox
-                            [X,Y,Z] = obj.getBoundaryLimits;
-                            plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(1),'linestyle','--','color',[0.4 0.4 0.4]);
-                            plot3([X(1) X(1) X(2) X(2) X(1)],[Y(1) Y(2) Y(2) Y(1) Y(1)],[1 1 1 1 1].*Z(2),'linestyle','--','color',[0.4 0.4 0.4]);
-                            plot3([X(1) X(1)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
-                            plot3([X(2) X(2)],[Y(1) Y(1)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
-                            plot3([X(1) X(1)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
-                            plot3([X(2) X(2)],[Y(2) Y(2)],Z,'linestyle','--','color',[0.4 0.4 0.4]);
-                        end
                         varargin{end+1} = 'componentName'; %#ok<AGROW>
                         varargin{end+1} = componentName; %#ok<AGROW>
                         varargin{end+1} = 'objectName'; %#ok<AGROW>
@@ -2038,6 +2085,8 @@ classdef CST_MicrowaveStudio < handle
                     s2.Vertices(:,3) = s2.Vertices(:,3)-0.01; %Shift vertices by a small amount in other direction
                 else
                     disp('Is this really a surface?');
+                    s.Vertices(:,3) = s.Vertices(:,3)+0.01; %Shift vertices by a small amount
+                    s2.Vertices(:,3) = s2.Vertices(:,3)-0.01; %Shift vertices by a small amount in other direction
                 end
             else
                 %Volumetric data - just plot as it is

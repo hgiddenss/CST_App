@@ -62,14 +62,14 @@ CST.setFreq(2,3)
 
 %Add a line source to the side of the lens:
 CST.addDiscretePort([0 0],[R R],Z,0.1,50)
-
+CST.addDiscretePort([R R]*cosd(45),[R R]*cosd(45),Z,0.1,50)
 %Set the Boundary Conditions:
 CST.setBoundaryCondition('xmin','open add space','xmax','open add space','ymin',...
     'open add space','ymax','open add space')
 CST.setBoundaryCondition('Zmin','Electric','ZMax','Electric');
 
 %Set a symmetry plane on the y-z plane
-CST.addSymmetryPlane('X','magnetic')
+%CST.addSymmetryPlane('X','magnetic')
 CST.addSymmetryPlane('Z','electric')
 
 CST.setBackgroundLimits([lamda lamda],[lamda lamda],[0 0]);
@@ -85,5 +85,26 @@ CST.setSolver('td')
 CST.runSimulation;
 
 % Save the model
+%%
+theta = 90;
+phi = 0:360;
+
+[Eabs1] = CST.getFarField(2.4,theta,phi,'units','directivity','ffid','farfield (f=2.4) [1]');
+[Eabs2] = CST.getFarField(2.4,theta,phi,'units','directivity','ffid','farfield (f=2.4) [2]');
+
+minVal = -5;
+Eabs1(Eabs1 < minVal) = minVal;
+Eabs2(Eabs2 < minVal) = minVal;
+%%
+pax = polaraxes('parent',figure);
+hold on
+plot(pax,deg2rad(-180:180),Eabs1);
+plot(pax,deg2rad(-180:180),Eabs2);
+pax.RLim = [-5 10];
+pax.ThetaLim = [0 180];
+
+
+
+
 %CST.save;
 

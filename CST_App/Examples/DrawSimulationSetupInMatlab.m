@@ -89,7 +89,7 @@ CST.mergeCommonSolids('component3');
 %
 fig = figure('color',[1 1 1]);
 hAx = axes('parent',fig);
-s = CST.drawObjectMatlab('axes',hAx,'excludeObject',{'component2:Sphere1'},'transparency',1,'boundingBox',false);
+s = CST.drawObjectMatlab('axes',hAx,'excludeObject',{'component2:Sphere1'},'alpha',1,'boundingBox',false);
 
 axis off
 
