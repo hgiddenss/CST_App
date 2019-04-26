@@ -154,7 +154,7 @@ classdef CST_MicrowaveStudio < handle
             
             if exist(ff,'file') == 2
                 %If file exists, open
-                [obj.CST,obj.mws] = CST_MicrowaveStudio.openFile(obj.folder,obj.filename);
+                [obj.CST,obj.mws] = CST_MicrowaveStudio.openFile(obj.folder,[obj.filename,ext]);
                 fprintf('Microwave studio project was successfully opened\n')
             else %Create a new MWS session
                 %Create a directory in 'folder' called
@@ -1368,7 +1368,7 @@ classdef CST_MicrowaveStudio < handle
                 error('CST_MicrowaveStudio:ResultFileDoesntExist',...
                     ['Farfield result does not exist. Please use getFieldIDStrings to determine the available 3D Field Results.\n',...
                     'Most FFID Strings are of the form "farfield (f=2.4)[1]". They are case sensitive.\n',...
-                    'The value returned from getFieldIDStrings may be of the form "fArFieLd (f=2.4)_1", which should be modified to read fArFieLd (f=2.4) [1]',...
+                    'The value returned from getFieldIDStrings may be of the form "farfieLd (f=2.4)_1", which should be modified to read farfieLd (f=2.4) [1]',...
                     'before inputting as the parameter value for to ffid in the input argument list'])
             end
             
@@ -1647,13 +1647,22 @@ classdef CST_MicrowaveStudio < handle
                 case {'ex','x'}
                     re =  fieldObject.invoke('GetArray','xre');
                     im =  fieldObject.invoke('GetArray','xim');
+                    re = re(index+1);
+                    im = im(index+1);
+                    outputField = re+1i*im;
                 case {'ey','y'}
                     re =  fieldObject.invoke('GetArray','yre');
                     im =  fieldObject.invoke('GetArray','yim');
+                    re = re(index+1);
+                    im = im(index+1);
+                    outputField = re+1i*im;
                 case {'ez','z'}
                     re =  fieldObject.invoke('GetArray','zre');
                     im =  fieldObject.invoke('GetArray','zim');
-                case {'abs'}   %This is a problem when using closed boundaries!
+                    re = re(index+1);
+                    im = im(index+1);
+                    outputField = re+1i*im;
+                case {'abs,eabs'}   %This is a problem when using closed boundaries and symmetery planes!
                     reX =  fieldObject.invoke('GetArray','xre');
                     imX =  fieldObject.invoke('GetArray','xim');
                     reY =  fieldObject.invoke('GetArray','yre');
@@ -1665,18 +1674,24 @@ classdef CST_MicrowaveStudio < handle
                     Ey = reY + 1i*imY;
                     Ez = reZ + 1i*imZ;
                     
+                    Ex = Ex(index+1);
+                    Ey = Ey(index+1);
+                    Ez = Ez(index+1);
+                    
                     if numel(Ex) ~= numel(Ey) || numel(Ex) ~= numel(Ez)
-                        error("The different components of the E-field vectors appear to have a different number"...
-                            + " of elements. This has not been accounted for and results in an error")
+                        error("Exporting absolute field values is currently not working")
                     end
                     
                     re = (abs(Ex) + abs(Ey) + abs(Ez));
                     im = zeros(size(re));
+                    
+                    outputField = re+1i*im;
+                    
+                otherwise
+                    error("The field component identifier ""%s"" is not recognised",fieldComponent)
             end
             
-            re = re(index+1);
-            im = im(index+1);
-            outputField = re+1i*im;
+            
             
             %Retrieve the actual XY,/XZ/YZ meshgrid coordinates so the
             %field can be plotted to scale
@@ -1753,8 +1768,9 @@ classdef CST_MicrowaveStudio < handle
                             YPos = [Y2;YPos];
                         end
                     end
-                    
-                    ZPos = ones(numel(YPos),numel(XPos)).*ZPos;
+                    if nargout > 1
+                        ZPos = ones(numel(YPos),numel(XPos)).*ZPos;
+                    end
                 case 'xz'
                     if ~isequal('none',XSym)
                         outputField = [fliplr(outputField(:,2:end)), outputField];
@@ -1770,9 +1786,11 @@ classdef CST_MicrowaveStudio < handle
                             ZPos = [Z2;Zpos];
                         end
                     end
-                    XPos = XPos(:);
-                    ZPos = ZPos(:)';
-                    YPos = ones(numel(ZPos),numel(XPos)).*YPos;
+                    if nargout > 1
+                        YPos = ones(numel(ZPos),numel(XPos)).*YPos;
+                        XPos = repmat(XPos,size(YPos,1),1);
+                        ZPos = repmat(ZPos,1,size(YPos,2));
+                    end
                 case 'yz'
                     if ~isequal('none',YSym)
                         outputField = [fliplr(outputField(:,2:end)), outputField];
@@ -1788,9 +1806,11 @@ classdef CST_MicrowaveStudio < handle
                             ZPos = [Z2;ZPos];
                         end
                     end
-                    YPos = YPos(:);
-                    ZPos = ZPos(:)';
-                    XPos = ones(numel(ZPos),numel(YPos)).*XPos;
+                    if nargout > 1
+                        XPos = ones(numel(ZPos),numel(YPos)).*XPos;
+                        YPos = repmat(YPos,size(XPos,1),1);
+                        ZPos = repmat(ZPos,1,size(XPos,2));
+                    end
             end
         end
         function [idStrings] = getFieldIDStrings(obj,monitor)
@@ -1821,27 +1841,31 @@ classdef CST_MicrowaveStudio < handle
             ffm = endsWith(f_strings,'.ffm');
             m3d = endsWith(f_strings,'.m3d');
             
+            idStrings_FF = filenames(ffm);
+            
+            %Try to correct for the way the ffid and idstrings
+            %change with the first underscore and brackets
+            for i = 1:numel(idStrings_FF)
+                idx = strfind(idStrings_FF{i},'_');
+                if ~isempty(idx)
+                    idStrings_FF{i} = [idStrings_FF{i}(1:idx(1)-1),' [',idStrings_FF{i}(idx(1)+1:end)];
+                end
+            end
+            idStrings_FF = replace(idStrings_FF,'.ffm',']');
+            
+            idStrings_E = filenames(m3d);
+                
             if nargin == 2
                 switch lower(monitor)
                     case{'farfield','ffid','ffm','.ffm'}
-                        idStrings = filenames(ffm);
-                        
-                        %Try to correct for the way the ffid and idstrings
-                        %change with the first underscore and brackets
-                        for i = 1:numel(idStrings)
-                            idx = strfind(idStrings{i},'_');
-                            if ~isempty(idx)
-                                idStrings{i} = [idStrings{i}(1:idx(1)-1),' [',idStrings{i}(idx(1)+1:end)];
-                            end
-                        end
-                        idStrings = replace(idStrings,'.ffm',']');
-                        
+                        idStrings = idStrings_FF;
                     case{'3dfield','efield','hfield','m3d','.m3d'}
-                        idStrings = filenames(m3d);
+                        idStrings = idStrings_E;
                 end
             else
-                idStrings = filenames(ffm | m3d);
+                idStrings = [idStrings_E;idStrings_FF];
             end
+            
         end
         function [s,l] = drawObjectMatlab(obj,varargin)
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
