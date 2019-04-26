@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.9';
+        version = '1.2.11';
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
