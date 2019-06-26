@@ -3,9 +3,10 @@ function [varargout] = plot3DPatternCST(CST,f,ffid,EMin,hAx)
 %   Detailed explanation goes here
 
 theta = 0:3:180;
-phi = -180:3:180;
+phi = -0:3:360;
 
 [Eabs] = CST.getFarField(f,theta,phi,'units','directivity','ffid',ffid);
+
 
 EMax = max(Eabs(:));
 EMax = ceil(EMax/5)*5;
@@ -22,7 +23,7 @@ end
 t = deg2rad(90:-3:-90);
 p = deg2rad(-180:3:180);
 
-s = sphericalSurface(hAx,t,p,Eabs1,Eabs,'edgealpha',0.2,'FaceColor','interp');
+s = sphericalSurface(hAx,p,t,Eabs1',Eabs','edgealpha',0.2,'FaceColor','interp');
 axis equal
 cbar = colorbar;
 

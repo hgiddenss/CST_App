@@ -9,7 +9,7 @@ end
 [Eabs] = CST.getFarField(f,theta,phi,'units','directivity');
 
 
-Eabs(Eabs < -20) = -20;
+Eabs(Eabs < -15) = -15;
 
 if nargin == 4
     pAx = polaraxes('parent',figure);
@@ -17,7 +17,7 @@ end
 
 polarplot(pAx,deg2rad(phi),Eabs,'-');
 
-pAx.RLim = [-20 15];
+pAx.RLim = [-15 15];
 
 if nargout> 0
     varargout{1} = pAx;

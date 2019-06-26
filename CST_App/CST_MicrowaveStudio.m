@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.11'
+        version = '1.2.12'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -361,7 +361,7 @@ classdef CST_MicrowaveStudio < handle
             X = obj.checkParam(X);
             Y = obj.checkParam(Y);
             Z = obj.checkParam(Z);
-                        
+            
             VBA = sprintf(['With Brick\n',...
                 '.Reset\n',...
                 '.Name "%s"\n',...
@@ -394,7 +394,7 @@ classdef CST_MicrowaveStudio < handle
         function insertObject(obj,object1,object2)
             %Insert objects into each other
             VBA = sprintf('Solid.Insert "%s", "%s"',object1,object2);
-            obj.update(sprintf(['Boolean Insert Shapes:%s,%s',object1,object2]),VBA);
+            obj.update(sprintf('Boolean Insert Shapes:%s,%s',object1,object2),VBA);
             
         end
         function addNormalMaterial(obj,name,Eps,Mue,C)
@@ -455,7 +455,7 @@ classdef CST_MicrowaveStudio < handle
             Z = obj.checkParam(Z);
             R = obj.checkParam(R);
             impedance = obj.checkParam(impedance);
-
+            
             
             %Get the total next available port number
             p = obj.mws.invoke('Port');
@@ -827,35 +827,35 @@ classdef CST_MicrowaveStudio < handle
             switch lower(orientation)
                 case 'z'
                     VBA2 = sprintf([VBA,...
-                         '.Zrange "%s", "%s"\n',...
-                         '.Xcenter "%s"\n',...
-                         '.Ycenter "%s"\n',...
-                         '.Segments "0"\n',...
-                         '.Create\n',...
-                         'End With'],...
+                        '.Zrange "%s", "%s"\n',...
+                        '.Xcenter "%s"\n',...
+                        '.Ycenter "%s"\n',...
+                        '.Segments "0"\n',...
+                        '.Create\n',...
+                        'End With'],...
                         Z(1),Z(2),X,Y);
                 case 'y'
                     VBA2 = sprintf([VBA,...
-                         '.Yrange "%s", "%s"\n',...
-                         '.Xcenter "%s"\n',...
-                         '.Zcenter "%s"\n',...
-                         '.Segments "0"\n',...
-                         '.Create\n',...
-                         'End With'],...
+                        '.Yrange "%s", "%s"\n',...
+                        '.Xcenter "%s"\n',...
+                        '.Zcenter "%s"\n',...
+                        '.Segments "0"\n',...
+                        '.Create\n',...
+                        'End With'],...
                         Y(1),Y(2),X,Z);
                 case 'x'
                     VBA2 = sprintf([VBA,...
-                         '.Xrange "%s", "%s"\n',...
-                         '.Ycenter "%s"\n',...
-                         '.Zcenter "%s"\n',...
-                         '.Segments "0"\n',...
-                         '.Create\n',...
-                         'End With'],...
+                        '.Xrange "%s", "%s"\n',...
+                        '.Ycenter "%s"\n',...
+                        '.Zcenter "%s"\n',...
+                        '.Segments "0"\n',...
+                        '.Create\n',...
+                        'End With'],...
                         X(1),X(2),Y,Z);
             end
             
             obj.update(['define cylinder:',component,':',name],VBA2);
-
+            
             %obj.update(['define cylinder:',component,':',name],VBA);
             
         end
@@ -974,7 +974,7 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('material','');
             p.addParameter('destination','');
             p.parse(varargin{:})
-
+            
             x = obj.checkParam(x);
             y = obj.checkParam(y);
             z = obj.checkParam(z);
@@ -1002,14 +1002,14 @@ classdef CST_MicrowaveStudio < handle
         function rotateObject(obj,varargin)
             % CST.rotateObject(objectName,rotationAngles,rotationCenter)
             % Rotates an object defined by objectname of the format
-            % (componentName:objectName) by the rotation angle 
+            % (componentName:objectName) by the rotation angle
             % in rotationAngles = [xrot, yrot, zrot] and the center of
             % rotation defined be rotationCenter = [xc, yc,zc];
             %
             % CST.rotateObject(componentName,objectName,rotationAngles,rotationCenter)
             % is the same as above with the component and object names
             % split
-            % 
+            %
             % CST.rotateObject(...,Parmaeter,Value) allows parameter/value
             % inputs of 'Copy' (true/false) and 'repetitions (number of
             % repetitions)
@@ -1036,7 +1036,7 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('copy',false);
             p.addParameter('repetitions',1);
             p.parse(varargin{:});
-                        
+            
             copy = p.Results.copy;
             repetitions = p.Results.repetitions;
             
@@ -1268,7 +1268,7 @@ classdef CST_MicrowaveStudio < handle
             % the time and singal data from all the port signals rom the
             % simulation along with the string data indicating the type of
             % signal. Sig
-            % 
+            %
             % Example
             % [time,signal,sigID] = CST.getPortSignals();
             % plot(time(:,1),signal(:,1));
@@ -1306,9 +1306,9 @@ classdef CST_MicrowaveStudio < handle
                 result1D = obj.mws.invoke('Result1D',fname);
                 
                 try
-                    time(:,i) = result1D.invoke('GetArray','x'); %#ok<AGROW>      %This will fail if curves have different numbers of points 
+                    time(:,i) = result1D.invoke('GetArray','x'); %#ok<AGROW>      %This will fail if curves have different numbers of points
                     signal(:,i) = result1D.invoke('GetArray','y'); %#ok<AGROW>    - but this is unlikely/impossible in TD simulation
-
+                    
                 catch err
                     warning('Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
                     rethrow(err);
@@ -1428,8 +1428,8 @@ classdef CST_MicrowaveStudio < handle
             
             if obj.solver == "f"
                 if ~strcmpi(type,'limits')
-                error('CST_MicrowaveStudio:getMeshPoints:SolverTypeError',...
-                    'This function is currently not available for results from the frequency domain solver');
+                    error('CST_MicrowaveStudio:getMeshPoints:SolverTypeError',...
+                        'This function is currently not available for results from the frequency domain solver');
                 end
             end
             
@@ -1595,8 +1595,9 @@ classdef CST_MicrowaveStudio < handle
                     iy = 0:nY-1;
                     iy = (iy*nX)';
                     index = iy+ix;
-                    if location < 0 %Use the halfway point
-                        index = index+(round(nZ/2)-1)*nX*nY;
+                    if location < 0 %Use the halfway mesh point
+                        %index = index+(round(nZ/2)-1)*nX*nY;
+                        index = index+(round(nZ/2))*nX*nY;
                     elseif location > nZ
                         warning('The specified Z location of the xy plane is larger than the number of z-plane mesh cells');
                     else
@@ -1609,7 +1610,8 @@ classdef CST_MicrowaveStudio < handle
                     iz = (iz*nX*nY)';
                     index = iz+ix;
                     if location < 0
-                        index = index+(round(nY/2)-1)*nY;
+                        %index = index+(round(nY/2)-1)*nY;
+                        index = index+(round(nY/2))*nY-1;
                     elseif location > nY
                         warning('The specified Y location of the xz plane is larger than the number of y-plane mesh cells');
                     else
@@ -1624,7 +1626,8 @@ classdef CST_MicrowaveStudio < handle
                     
                     index = iz+iy;
                     if location < 0
-                        index = index+(round(nX/2)-1);
+                        %index = index+(round(nX/2)-1);
+                        index = index+(round(nX/2));
                     elseif location > nX
                         warning('The specified x location of the yz plane is larger than the number of x-plane mesh cells');
                     else
@@ -1662,7 +1665,7 @@ classdef CST_MicrowaveStudio < handle
                     re = re(index+1);
                     im = im(index+1);
                     outputField = re+1i*im;
-                case {'abs,eabs'}   %This is a problem when using closed boundaries and symmetery planes!
+                case {'abs','eabs'}   %This is a problem when using closed boundaries and symmetery planes!
                     reX =  fieldObject.invoke('GetArray','xre');
                     imX =  fieldObject.invoke('GetArray','xim');
                     reY =  fieldObject.invoke('GetArray','yre');
@@ -1714,8 +1717,10 @@ classdef CST_MicrowaveStudio < handle
                         for i = 1:nY
                             YPos(i) = mesh.invoke('GetYPos',index(i));
                         end
-                        
                         ZPos = mesh.invoke('GetZPos',index(1));
+                        if (XPos(1) > XPos(end)) || (YPos(1) > YPos(end))
+                            warning('Something appears to have gone wrong reading in the field data. Coordinates are in the wrong order')
+                        end
                     case {'xz'}
                         XPos = zeros(1,nX);
                         ZPos = zeros(nZ,1);
@@ -1729,6 +1734,9 @@ classdef CST_MicrowaveStudio < handle
                         end
                         
                         YPos = mesh.invoke('GetYPos',index(1));
+                        if (XPos(1) > XPos(end)) || (ZPos(1) > ZPos(end))
+                            warning('Something appears to have gone wrong reading in the field data. Coordinates are in the wrong order')
+                        end
                     case {'yz'}
                         YPos = zeros(1,nY);
                         ZPos = zeros(nZ,1);
@@ -1741,6 +1749,9 @@ classdef CST_MicrowaveStudio < handle
                             ZPos(i) = mesh.invoke('GetZPos',index(i));
                         end
                         XPos = mesh.invoke('GetXPos',index(1));
+                        if (ZPos(1) > ZPos(end)) || (YPos(1) > YPos(end))
+                            warning('Something appears to have gone wrong reading in the field data. Coordinates are in the wrong order')
+                        end
                 end
             end
             
@@ -1749,7 +1760,7 @@ classdef CST_MicrowaveStudio < handle
             XSym = boundary.invoke('GetXSymmetry');
             YSym = boundary.invoke('GetYSymmetry');
             ZSym = boundary.invoke('GetZSymmetry');
-
+            
             
             
             switch lower(plane)
@@ -1854,7 +1865,7 @@ classdef CST_MicrowaveStudio < handle
             idStrings_FF = replace(idStrings_FF,'.ffm',']');
             
             idStrings_E = filenames(m3d);
-                
+            
             if nargin == 2
                 switch lower(monitor)
                     case{'farfield','ffid','ffm','.ffm'}
@@ -1867,13 +1878,22 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
+        function [components] = getComponentObjects(obj)
+           
+             solid = obj.mws.invoke('Solid');
+             numShapes = solid.invoke('GetNumberOfShapes');
+             components = cell(numShapes,1);
+             for iShape = 0:numShapes-1
+                 components{iShape+1} = solid.invoke('GetNameOfShapeFromIndex',iShape);
+             end
+        end
         function [s,l] = drawObjectMatlab(obj,varargin)
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
             % a matlab axes.
             % [s,l] = drawObjectMatlab() will plot all objects from all
             % components into the current matlab axes. s contains the
             % graphics surface objects of all children to the axes, and l
-            % contains the line objects. 
+            % contains the line objects.
             % drawObjectMatlab(obj,paramName,value) accepts the following
             % parameter/value input arguments:
             %   Param               Value
@@ -2004,7 +2024,7 @@ classdef CST_MicrowaveStudio < handle
                 if any(strcmp([p.Results.componentName,':',p.Results.objectName],p.Results.excludeObjects))
                     return
                 end
-
+                
             end
             
             if ~solid.invoke('DoesExist',[p.Results.componentName,':',p.Results.objectName])
@@ -2059,32 +2079,32 @@ classdef CST_MicrowaveStudio < handle
                 previousMaterials = hAx.materials;
                 idx = strcmpi(previousMaterials,materialName);
                 c = hAx.materialColors(idx,:);
-%                 if ~any(idx) && ~strcmp(materialName,'PEC')
-%                     hAx.materials{end+1} = materialName;
-%                     c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-%                     
-%                     if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
-%                         hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-%                         if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-%                             hAx.ColorOrderIndex = 1;
-%                         end
-%                         c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-%                     end
-%                     hAx.materialColors{end+1} = c;
-%                     
-%                     hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-%                     if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-%                         hAx.ColorOrderIndex = 1;
-%                     end
-%                 elseif strcmp(materialName,'PEC')
-%                     hAx.materials{end+1} = materialName;
-%                     c = [0.6 0.6 0.6];
-%                     hAx.materialColors{end+1} = c;
-%                 else
-%                     %idx = find(idx);
-%                     c = hAx.materialColors{idx};
-%                 end
-%                 
+                %                 if ~any(idx) && ~strcmp(materialName,'PEC')
+                %                     hAx.materials{end+1} = materialName;
+                %                     c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+                %
+                %                     if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
+                %                         hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+                %                         if hAx.ColorOrderIndex > length(hAx.ColorOrder)
+                %                             hAx.ColorOrderIndex = 1;
+                %                         end
+                %                         c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
+                %                     end
+                %                     hAx.materialColors{end+1} = c;
+                %
+                %                     hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
+                %                     if hAx.ColorOrderIndex > length(hAx.ColorOrder)
+                %                         hAx.ColorOrderIndex = 1;
+                %                     end
+                %                 elseif strcmp(materialName,'PEC')
+                %                     hAx.materials{end+1} = materialName;
+                %                     c = [0.6 0.6 0.6];
+                %                     hAx.materialColors{end+1} = c;
+                %                 else
+                %                     %idx = find(idx);
+                %                     c = hAx.materialColors{idx};
+                %                 end
+                %
                 
             end
             
@@ -2134,7 +2154,7 @@ classdef CST_MicrowaveStudio < handle
                     l = children(~idx);
                 end
             end
-
+            
             
         end
         function [X,Y,Z ] = getBoundaryLimits(obj)
@@ -2264,11 +2284,11 @@ classdef CST_MicrowaveStudio < handle
                     
                     if ~obj.isParameter(param)
                         error("CST_MicrowaveStudio:ParameterDoesntExist",...
-                              "Parameter "+ param +" does not exist. Please add it to the project before assigning it to the material property");
+                            "Parameter "+ param +" does not exist. Please add it to the project before assigning it to the material property");
                     end
-
+                    
                     out = string(param);
-
+                    
                 end
             else
                 %Check the input parameter is the correct type
