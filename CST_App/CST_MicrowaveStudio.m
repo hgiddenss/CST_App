@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.12'
+        version = '1.2.13'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -1611,12 +1611,12 @@ classdef CST_MicrowaveStudio < handle
                     index = iz+ix;
                     if location < 0
                         %index = index+(round(nY/2)-1)*nY;
-                        index = index+(round(nY/2))*nY-1;
+                        index = index+(round(nY/2)*nX);
                     elseif location > nY
                         warning('The specified Y location of the xz plane is larger than the number of y-plane mesh cells');
                     else
                         location = round(location);
-                        index = index+location*nY;
+                        index = index+location*nX;
                     end
                 case 'yz'
                     iy = 0:nY-1;
@@ -2007,7 +2007,7 @@ classdef CST_MicrowaveStudio < handle
                     idx = arrayfun(@(x)isa(x,'matlab.graphics.chart.primitive.Line'),children);
                     s = children(~idx);
                     if nargout > 1
-                        l = children(~idx);
+                        l = children(idx);
                     end
                 end
                 
@@ -2069,8 +2069,6 @@ classdef CST_MicrowaveStudio < handle
                 if ~isprop(hAx,'materials')
                     hAx.addprop('materials');
                     hAx.addprop('materialColors');
-                    
-                    
                     [materialNames,colors] =  obj.getMaterialColors;
                     hAx.materials = materialNames;
                     hAx.materialColors = colors;
@@ -2078,34 +2076,7 @@ classdef CST_MicrowaveStudio < handle
                 
                 previousMaterials = hAx.materials;
                 idx = strcmpi(previousMaterials,materialName);
-                c = hAx.materialColors(idx,:);
-                %                 if ~any(idx) && ~strcmp(materialName,'PEC')
-                %                     hAx.materials{end+1} = materialName;
-                %                     c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                %
-                %                     if isequal(c,[0.6 0.6 0.6]) %reserved for PEC...?
-                %                         hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                %                         if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-                %                             hAx.ColorOrderIndex = 1;
-                %                         end
-                %                         c = hAx.ColorOrder(hAx.ColorOrderIndex,:);
-                %                     end
-                %                     hAx.materialColors{end+1} = c;
-                %
-                %                     hAx.ColorOrderIndex = hAx.ColorOrderIndex+1;
-                %                     if hAx.ColorOrderIndex > length(hAx.ColorOrder)
-                %                         hAx.ColorOrderIndex = 1;
-                %                     end
-                %                 elseif strcmp(materialName,'PEC')
-                %                     hAx.materials{end+1} = materialName;
-                %                     c = [0.6 0.6 0.6];
-                %                     hAx.materialColors{end+1} = c;
-                %                 else
-                %                     %idx = find(idx);
-                %                     c = hAx.materialColors{idx};
-                %                 end
-                %
-                
+                c = hAx.materialColors(idx,:);                
             end
             
             if v == 0
@@ -2146,14 +2117,14 @@ classdef CST_MicrowaveStudio < handle
                 drawnow;
             end
             
-            if nargout > 0
-                children = hAx.Children;
-                idx = arrayfun(@(x)isa(x,'matlab.graphics.chart.primitive.Line'),children);
-                s = children(~idx);
-                if nargout > 1
-                    l = children(~idx);
-                end
-            end
+%             if nargout > 0
+%                 children = hAx.Children;
+%                 idx = arrayfun(@(x)isa(x,'matlab.graphics.chart.primitive.Line'),children);
+%                 s = children(~idx);
+%                 if nargout > 1
+%                     l = children(idx);
+%                 end
+%             end
             
             
         end
