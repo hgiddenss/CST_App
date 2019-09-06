@@ -25,7 +25,7 @@ CST.runSimulation;
 theta = 0:2:180;
 phi = 0:2:360;
 
-[Eabs] = CST.getFarField(220,theta,phi,'units','directivity');
+[Eabs] = CST.getFarField(2.5,theta,phi,'units','directivity');
 
 
 [p,t] = meshgrid(phi,theta);
