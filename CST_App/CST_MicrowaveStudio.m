@@ -1484,7 +1484,107 @@ classdef CST_MicrowaveStudio < handle
             meshOut = struct('X',X,'Y',Y,'Z',Z,'nX',nX,'nY',nY,'nZ',nZ,'meshPoints',nP);
             
         end
-        
+        function [outputField,XPos,YPos,ZPos] = getEFieldVectorAll(obj,freq,fieldComponent,varargin)
+            % 
+            %
+            
+            if obj.solver == "f"
+                error('CST_MicrowaveStudio:getEfieldVector:SolverTypeError',...
+                    'This function is currently not available for results from the frequency domain solver');
+            end
+            
+            p = inputParser;
+            p.addParameter('ffid',[])
+            %The [1] in SimID below is actually related to the 'simulation
+            %identifier'. It most commonly refers to the port number, port
+            %1 is most common. It can be found by looking at the
+            %information in the square brackets after the field monitor
+            %results in CST
+            p.addParameter('SimID',1) %This is ignored if the ffid string is input as an argument
+            
+            p.parse(varargin{:});
+            
+            field_id = p.Results.ffid;
+            SimID = p.Results.SimID;
+            
+            if isempty(field_id)
+                %Update this for specified field type (E/H)
+                field_id = ['^e-field (f=',num2str(freq),')_',num2str(SimID),'']; %e.g. "farfield (f=2.4)[1]"
+                %A better solution would be to search through the available
+                %.m3d files for any matching the frequency/sim id
+                
+            else
+                field_id = ['^',field_id];
+            end
+            
+            %For Future Info:
+            %If the tetrahedral mesh is used, the field_id uses a different
+            %string and different type of file with a string like this:
+            % 'e-field (#0001)_1(1).m3t'
+            %There appear to be some .m3m files which contain the field_id
+            %filenames similar to the transient solver results as above,
+            %which may contain the information
+            
+            
+            try
+                fieldObject = obj.mws.invoke('Result3D',field_id);
+            catch
+                try
+                    %Sometimes there is a ',1' at the end of the file
+                    %name...
+                    fieldObject = obj.mws.invoke('Result3D',[field_id,',1']);
+                catch
+                    error('CST_MicrowaveStudio:ResultFileDoesntExist',...
+                        'Farfield result does not exist. Please use getFieldIDStrings to determine the available 3D Field Results')
+                end
+            end
+            %The 'get' methods are indexed using the following equation:
+            % index = ix + iy*nx + iz*nx*ny < .GetLength = nx*ny*nz
+            
+            meshInfo = obj.getMeshInfo;
+            [XPos,YPos,ZPos] = meshgrid(meshInfo.X,meshInfo.Y,meshInfo.Z);
+            
+            switch lower(fieldComponent)
+                case {'ex','x'}
+                    re =  fieldObject.invoke('GetArray','xre');
+                    im =  fieldObject.invoke('GetArray','xim');
+                    outputField = re+1i*im;
+                case {'ey','y'}
+                    re =  fieldObject.invoke('GetArray','yre');
+                    im =  fieldObject.invoke('GetArray','yim');
+                    outputField = re+1i*im;
+                case {'ez','z'}
+                    re =  fieldObject.invoke('GetArray','zre');
+                    im =  fieldObject.invoke('GetArray','zim');
+                    outputField = re+1i*im;
+                case {'abs','eabs'}   %This is a problem when using closed boundaries and symmetery planes!
+                    reX =  fieldObject.invoke('GetArray','xre');
+                    imX =  fieldObject.invoke('GetArray','xim');
+                    reY =  fieldObject.invoke('GetArray','yre');
+                    imY =  fieldObject.invoke('GetArray','yim');
+                    reZ =  fieldObject.invoke('GetArray','zre');
+                    imZ =  fieldObject.invoke('GetArray','zim');
+                    
+                    Ex = reX + 1i*imX;
+                    Ey = reY + 1i*imY;
+                    Ez = reZ + 1i*imZ;
+                    
+                    if numel(Ex) ~= numel(Ey) || numel(Ex) ~= numel(Ez)
+                        error("Exporting absolute field values is currently not working")
+                    end
+                    
+                    re = (abs(Ex) + abs(Ey) + abs(Ez));
+                    im = zeros(size(re));
+                    
+                    outputField = re+1i*im;
+                    
+                otherwise
+                    error("The field component identifier ""%s"" is not recognised",fieldComponent)
+            end
+            
+           outputField = reshape(outputField,meshInfo.nX,meshInfo.nY,meshInfo.nZ);
+            
+        end
         function [outputField,XPos,YPos,ZPos] = getEFieldVector(obj,freq,fieldComponent,plane,location,varargin)
             % [This function is not finalized and may change in a future
             % version. Follow the examples for information on how to use
