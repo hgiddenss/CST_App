@@ -229,7 +229,7 @@ classdef CST_MicrowaveStudio < handle
             %string shown in the history list. consecutive commandStrings
             %should never be the same as this may cause errors when the CST
             %history list is updated
-            if nargin < 2
+            if nargin < 2 
                 commandString = ['CST_update_',datestr(now(),"HHMMSSddmmyyyy")]; %A unique string based on current time
             end
             if nargin < 3
