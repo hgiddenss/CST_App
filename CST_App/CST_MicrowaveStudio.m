@@ -190,6 +190,8 @@ classdef CST_MicrowaveStudio < handle
                 VBA = sprintf(['With Material\n',...
                     '.Type "Normal\n',...
                     '.Colour "0.6", "0.6", "0.6"\n',...
+                    '.Epsilon "1"\n',...
+                    '.Mu "1"\n',...
                     '.ChangeBackgroundMaterial\n',...
                     'End With',...
                     ]);
@@ -261,17 +263,25 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
-        function changeParameterValue(obj,name,value)
+        function changeParameterValue(obj,varargin)
             % CST_MicrowaveStudio.changeParameterValue(name,value)
             % Change the value of an existing parameter. Value must be a
             % double
             
-            if ~obj.isParameter(name)
-                addParameter(obj,name,value)
-            else
-                obj.mws.invoke('StoreDoubleParameter',name,value);
-                obj.parameterUpdate;
+            if rem(numel(varargin),2) == 1
+                error('Odd number of Name/Value pair input arguments detected');
             end
+            
+            name = varargin(1:2:end);
+            value = varargin(2:2:end);
+            for i = 1:numel(name)
+                if ~obj.isParameter(name{i})
+                    addParameter(obj,name{i},value{i})
+                else
+                    obj.mws.invoke('StoreDoubleParameter',name{i},value{i});
+                end
+            end
+            obj.parameterUpdate;
         end
         function parameterUpdate(obj)
             % CST_MicrowaveStudio.parameterUpdate
@@ -290,6 +300,64 @@ classdef CST_MicrowaveStudio < handle
             if obj.isParameter(name)
                 val = obj.mws.invoke('RestoreDoubleParameter',name);
             end
+        end
+        function defineBackgroundMaterial(obj,materialType,varargin)
+            %defineBackgroundMaterial(materialType,varargin)
+            % Define the background material for a model
+            % materialType can be one of the following options:
+            % 'Vacuum'  'PEC'  'Dielectric'
+            % If Dielectric, then optional parameter/value arguments should be included
+            % 'Er' (default = 1), 'Mu' (default = 1), 'tand' (default = 0), 'sigma' (default = 0), 
+            % 'tandM' (default = 0), 'sigmaM' (default = 0)
+            %
+            
+            p = inputParser;
+            p.addParameter('Er',1);
+            p.addParameter('Mu',1);
+            p.addParameter('tand',0);
+            p.addParameter('sigma',0);
+            p.addParameter('tandM',0);
+            p.addParameter('sigmaM',0);
+            p.parse(varargin{:});
+            
+            switch lower(materialType)
+                case 'vacuum'
+                    VBA = sprintf(['With Material\n',...
+                    '.Type "Normal"\n',...
+                    '.Colour "0.6", "0.6", "0.6"\n',...
+                    '.Epsilon "1"\n',...
+                    '.Mu "1"\n',...
+                    '.ChangeBackgroundMaterial\n',...
+                    'End With',...
+                    ]);
+                case 'pec'
+                    VBA = sprintf(['With Material\n',...
+                    '.Type "Pec"\n',...
+                    '.Colour "0.6", "0.6", "0.6"\n',...
+                    '.Epsilon "1"\n',...
+                    '.Mu "1"\n',...
+                    '.ChangeBackgroundMaterial\n',...
+                    'End With',...
+                    ]);
+                case 'dielectric'
+                    VBA = sprintf(['With Material\n',...
+                    '.Type "Normal"\n',...
+                    '.Colour "0.6", "0.6", "0.6"\n',...
+                    '.Epsilon "%.3f"\n',...
+                    '.Mu "%.3f"\n',...
+                    '.tand "%.3f"\n',...
+                    '.sigma "%.3f"\n',...
+                    '.tandM "%.3f"\n',...
+                    '.sigmaM "%.3f"\n',...
+                    '.ChangeBackgroundMaterial\n',...
+                    'End With',...
+                    ],p.Results.Er,p.Results.Mu,p.Results.tand,p.Results.sigma,p.Results.tandM,p.Results.sigmaM);
+                otherwise
+                    
+            end
+                    
+           obj.mws.invoke('addToHistory','Set Background Material',VBA);
+            
         end
         function defineUnits(obj,varargin)
             %defineUnits(Parameter,value) - Define the units used in the CST_MicrowaveStudio
@@ -397,23 +465,42 @@ classdef CST_MicrowaveStudio < handle
             obj.update(sprintf('Boolean Insert Shapes:%s,%s',object1,object2),VBA);
             
         end
-        function addNormalMaterial(obj,name,Eps,Mue,C)
+        function addNormalMaterial(obj,name,Eps,Mue,C,varargin)
+            %addNormalMaterial(obj,name,Eps,Mue,C)
             %Add a new 'Normal' material to the CST project
+            %Optional arguments are 'tand', 'sigma', 'tandM', 'sigmaM', all of which have a default value of 0
+            %Any of the arguments can be CST parameters and can be input as strings, as long as they already exist in
+            %the CST Parameter List
+            
+            p = inputParser;
+            p.addParameter('tand',0);
+            p.addParameter('sigma',0);
+            p.addParameter('tandM',0);
+            p.addParameter('sigmaM',0);
+            p.parse(varargin{:});
             
             %Check if input args are parameters or strings
             Eps = obj.checkParam(Eps);
             Mue = obj.checkParam(Mue);
-            
+            tand = obj.checkParam(p.Results.tand);
+            sigma = obj.checkParam(p.Results.sigma);
+            tandM = obj.checkParam(p.Results.tandM);
+            sigmaM = obj.checkParam(p.Results.sigmaM);
+                       
             VBA =  sprintf(['With Material\n',...
                 '.Reset\n',...
                 '.Name "%s"\n',...
                 '.Type "Normal"\n',...
                 '.Epsilon "%s"\n',...
                 '.Mue "%s"\n',...
+                '.tand "%s"\n',...
+                '.sigma "%s"\n',...
+                '.tandM "%s"\n',...
+                '.sigmaM "%s"\n',...
                 '.Colour "%f", "%f", "%f"\n',...
                 '.Create\n',...
                 'End With'],...
-                name,Eps,Mue,C(1),C(2),C(3));
+                name,Eps,Mue,tand,sigma,tandM,sigmaM,C(1),C(2),C(3));
             obj.update(['define material: ',name],VBA);
         end
         function addAnisotropicMaterial(obj,name,Eps,Mue,C)
@@ -1263,6 +1350,72 @@ classdef CST_MicrowaveStudio < handle
                 sFileType = sFileType{1};
             end
         end
+        function [f,Eps,Eps_dash,tan_d] = getDispersiveMaterialProps(obj,varargin)
+            % [f,Eps,Eps_dash,tan_d] = getDispersiveMaterialProps(obj,material) returns the dispersive material
+            % properties of the material named in the second argument across the frequency range in the CST simulation.
+            % [f,Eps,Eps_dash,tan_d] = getDispersiveMaterialProps(obj,material,nPoints) returns the material properties
+            % in arrays of nPoints number of entries
+            %New function - not fully tested and might fail if attempting to retrieve material properties from anything
+            %other than 'normal' materials 
+            
+            materialName = varargin{1};
+            
+            if numel(varargin) == 1
+                nPoints = 101;
+            else
+                nPoints = varargin{2};
+            end
+            
+            obj.mws.invoke('SelectTreeItem',['1D Results\Materials\',materialName,'\Dispersive']);
+            
+            plot1D = obj.mws.invoke('Plot1D');
+            nCurves = plot1D.invoke('GetNumberOfCurves');
+            
+            if nCurves == 0
+                f = [];
+                Eps = [];
+                Eps_dash = [];
+                tan_d = [];
+                warning('CSTMicrowaveSutdio:NoDataAvailable','Material not detected - returning empty values')
+                return
+            end
+            
+            for i = 1:nCurves
+                fname = plot1D.invoke('GetCurveFileName',i-1);
+                [~,sigID,~] = fileparts(fname); 
+                
+                sigID = strsplit(sigID,'_');
+                sigID = sigID{end};
+                result1D = obj.mws.invoke('Result1D',fname);
+                switch lower(sigID)
+                    case 're'
+                        f = result1D.invoke('GetArray','x'); % Assume all have same sampling rate - why wouldnt they?
+                        Eps = result1D.invoke('GetArray','y');
+                    case 'im'
+                        Eps_dash = result1D.invoke('GetArray','y');
+                    case 'tgd'
+                        tan_d = result1D.invoke('GetArray','y');
+                end
+            end
+            
+            %remove any duplicate frequency points
+            [f,iA,~] = unique(f);
+            Eps = Eps(iA);
+            Eps_dash = Eps_dash(iA);
+            tan_d = tan_d(iA);
+            
+            f1 = f(1);
+            f2 = f(end);
+            
+            fStep = (f2-f1)/(nPoints - 1);
+            fv = f1:fStep:f2;
+            
+            Eps = interp1(f,Eps,fv)';
+            Eps_dash = interp1(f,Eps_dash,fv)';
+            tan_d = interp1(f,tan_d,fv)';
+            f = fv';
+            
+        end
         function [time,signal,sigID] = getPortSignals(obj,varargin)
             % [time,signal,sigID] = getPortSignals(obj,varargin) returns
             % the time and singal data from all the port signals rom the
@@ -2038,7 +2191,8 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('alpha',0.5);
             p.addParameter('featureEdgeTol',pi/6);
             p.addParameter('boundingBox',true);
-            p.addParameter('excludeObjects',[])
+            p.addParameter('excludeObjects',[]);
+            p.addParameter('edgeColor',[]);
             
             p.parse(varargin{:});
             
@@ -2210,7 +2364,13 @@ classdef CST_MicrowaveStudio < handle
                 y = TR.Points(:,2);
                 z = TR.Points(:,3);
                 F = featureEdges(TR,p.Results.featureEdgeTol)';
-                plot3(x(F),y(F),z(F),'LineWidth',1,'color',[0 0 0 f_aplha]);
+                
+                edgeColor = p.Results.edgeColor; 
+                if isempty(edgeColor)
+                    edgeColor = [0 0 0 f_aplha];
+                end
+                %plot3(x(F),y(F),z(F),'LineWidth',1,'color',[0 0 0 f_aplha]);
+                plot3(x(F),y(F),z(F),'LineWidth',1,'color',edgeColor);
             end
             if strcmp(hAx.Visible,'on')
                 pause(0.01)
