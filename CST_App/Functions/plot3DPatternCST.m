@@ -54,7 +54,7 @@ cbar = colorbar;
 switch lower(units)
     case 'directivity'
         cbar.Label.String = 'Directivity (dBi)';
-    case 'gain'
+    case {'gain','realised gain','realized gain'}
         cbar.Label.String = 'Gain (dB)';
 end
 if norm 

@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.15'
+        version = '1.2.16'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -286,7 +286,8 @@ classdef CST_MicrowaveStudio < handle
         function parameterUpdate(obj)
             % CST_MicrowaveStudio.parameterUpdate
             % Update the history list
-            obj.mws.invoke('Rebuild');
+            %obj.mws.invoke('Rebuild');
+            obj.mws.invoke('RebuildOnParametricChange',false,false);
         end
         function out = isParameter(obj,name)
             % CST_MicrowaveStudio.isParameter(name)
@@ -576,7 +577,7 @@ classdef CST_MicrowaveStudio < handle
             % Examples:
             % % Add a 5 x 10 (X x Y) units port at the z=5 position propagating towards zmin.
             % CST = CST_MicrowaveStudio(cd,'test');
-            % CST.addPort('zmax',(0 5),(0 10), 5)
+            % CST.addWaveguidePort('zmax',(0 5),(0 10), 5)
             %
             % portNumber is obsolete and will be removed in future release
             
@@ -634,7 +635,7 @@ classdef CST_MicrowaveStudio < handle
                 'End With'],...
                 portNumber,orientation,X(1),X(2),Y(1),Y(2),Z(1),Z(2));
             
-            obj.update(['define waveguide port: ',portNumber],VBA);
+            obj.update(['define waveguide port: ',num2str(portNumber)],VBA);
         end
         function addFieldMonitor(obj,fieldType,freq)
             % Add a field monitor at specified frequency
@@ -1230,107 +1231,246 @@ classdef CST_MicrowaveStudio < handle
             end
             s.invoke('Start');
         end
-        function [freq,sparam,sFileType] = getSParameters(obj,sParamType,parSweepNum) %#ok<INUSD>
+        function [freq,sparam,sparamType] = getSParams(obj,varargin)
+            %Get the S-Parameter results from CST
+            % CST.getSParams on its own returns all sparam results for Run ID = 0
+            % CST.getSParams(SParamType) returns the sparameters specified by the string SParamType for Run ID = 0.
+            % CST.getSParams(RunID) returns all the sparameters specified by the number in RunID if it is available.
+            
+            % Examples:
+            % [freq, sparams, stype] = CST.getSParams('s11') % returns only the s11 results for Run ID = 0
+            % [freq, sparams, stype] = CST.getSParams('S11',4) % returns the s11 results for run ID 4 only
+            % [freq, sparams, stype] = CST.getSParams(2) % returns all sparameter results for run ID 2 only
+            % [freq, sparams, stype] = CST.getSParams(-1)% returns all sparameter results for all run IDs
+            % [freq, sparams, stype] = CST.getSParams('s11',-1) % returns the s11 results for all run IDs
+            %
+            % To get a list of all available S-Parameters and the strings which should be used in the first argument use
+            % CST.getSParamStrings. To get the Run IDs use CST.getRunIDs.
+            % 
+            % See Examples\ManagingSParameters.m for more help information.
+            
+            %First check input arguments
+            numInputArgs = numel(varargin);
+            
+            if numInputArgs == 0
+                %return all sparam results for run ID 0
+                sparamstring = '';
+                runID = 0;
+            elseif numInputArgs == 1
+                if isnumeric(varargin{1})
+                    %All Sparams for RUN ID in varargin{1}
+                    sparamstring = '';
+                    runID = varargin{1};
+                elseif isstring(varargin{1}) || ischar(varargin{1}) || iscell(varargin{1})
+                    %Sparam specified in varargin{1} but for all RUN IDs
+                    sparamstring = varargin{1};
+                    runID = 0;
+                end
+            elseif numInputArgs == 2
+                    % Both the Run ID and SParam type have been specified
+                   sparamstring = varargin{1};
+                   runID = varargin{2};
+            elseif numInputArgs > 2 
+                error('Too many input arguments have been specified');
+            end
+            
+            %Search for all available s-parameters
+            resultTree = obj.mws.invoke('resultTree');
+            [sparamtype,fullSParamString] = obj.getSParamStrings; %#ok<ASGLU>
+            
+            %Determine number of RunIDs
+            [resultIDs,resultIDStrings] = obj.getRunIDs; 
+            
+            if any(runID < 0) % negative number indicates output of all run IDs
+                runID = resultIDs;
+            end
+            
+            %Try to determine the s-parameter type from some commmon strings:
+            if isempty(sparamstring) %output all sparam types
+                sparamstring = sparamtype;
+                
+            elseif iscell(sparamstring)
+                for iS = 1:numel(sparamstring)
+                    if numel(sparamstring{iS}) == 3 %sparamstring likely input in format 's11', 's21', but we need a comma in between the numbers
+                        sparamstring{iS} = upper([sparamstring{iS}(1:2),',',sparamstring{iS}(3)]);
+                    end
+                end
+            elseif isstring(sparamstring) || ischar(sparamstring) 
+                if numel(sparamstring) == 3 %sparamstring likely input in format 's11', 's21', but we need a comma in between the numbers
+                    sparamstring = upper([sparamstring(1:2),',',sparamstring(3)]);
+                end
+                sparamstring = {sparamstring};
+            end
+            
+            nS = numel(sparamstring);
+            nRun = numel(runID);
+            
+            %Use the first RunID to get frequency and if it isnt available output error
+            idx = runID(1) == resultIDs;
+            if any(idx)
+                result1D = resultTree.invoke('GetResultFromTreeItem',['1D Results\S-Parameters\',sparamstring{1}],resultIDStrings{idx});
+            else
+               error('CST_MicrowaveStudio:ResultsMissing','Results are missing for Run ID "%d" so an matrix of NaNs has been returned in its place',runID(1))
+            end
+            freq = result1D.invoke('GetArray','x');
+            freq = freq(:);
+            nFreq = numel(freq);
+            
+            sparam = zeros(nFreq,nS,nRun);
+            sparamType = cell(1,nS,nRun);
+            
+            for iRun = 1:nRun
+                for iS = 1:nS
+                    idx = runID(iRun) == resultIDs; 
+                    
+                    try
+                    result1D = resultTree.invoke('GetResultFromTreeItem',['1D Results\S-Parameters\',sparamstring{iS}],resultIDStrings{idx});
+                    catch 
+                        warning('CST_MicrowaveStudio:ResultsMissing','Results are missing for Run ID "%d" so an matrix of NaNs has been returned in its place',runID(iRun))
+                        sparam(:,iS,iRun) = nan(nFreq,1,1);
+                        sparamType{1, iS, iRun} = [sparamstring{iS},' - ', resultIDStrings{idx}];
+                        continue
+                    end
+                    s_real = result1D.invoke('GetArray','yre');
+                    s_im = result1D.invoke('GetArray','yim');
+                    sparam(:,iS,iRun) = s_real + 1i*s_im;
+                    sparamType{1, iS, iRun} = [sparamstring{iS},' - ', resultIDStrings{idx}];
+                end
+            end
+            
+            sparam = squeeze(sparam);
+            
+            if ndims(sparam) < 3 %#ok<ISMAT>
+                sparamType = squeeze(sparamType);
+                sparamType = sparamType(:)';
+            end
+        end
+        function [sparamtype,fullTreeString] = getSParamStrings(obj)
+            %getSParamTypes returns all available S-Parameter String Names
+            resultTree = obj.mws.invoke('resultTree');
+            fullTreeString{1} = resultTree.invoke('GetFirstChildName','1D Results\S-Parameters'); 
+            i = 1;
+            while ~isempty(resultTree.invoke('GetNextItemName',fullTreeString{i}))
+                fullTreeString{i+1,1} = resultTree.invoke('GetNextItemName',fullTreeString{i});  %#ok<AGROW>
+                i = i+1;
+            end
+            sparamtype = replace(fullTreeString,'1D Results\S-Parameters\','');
+        end
+        function [runIDs,runIDStrings] = getRunIDs(obj)
+            %getRunIDs returns all the Run IDs and RunID Strings
+            resultTree = obj.mws.invoke('resultTree');
+            sparamtype = resultTree.invoke('GetFirstChildName','1D Results\S-Parameters'); 
+            
+            runIDStrings = resultTree.invoke('GetResultIDsFromTreeItem',sparamtype);
+            runID = split(runIDStrings,':');
+            runID = runID(:,3);
+            runIDs = str2double(runID);
+        end
+        function [freq,sparam,sFileType] = getSParameters(obj,sParamType,parSweepNum) 
             %Get the Sparameters from the 1D results in CST
-            % CST.getSParameters will return all available S-Parameters
-            % CST.getSParameters('S11') will return the S1,1 value in the
-            % 1D result tree.
+            % CST.getSParameters with no extra input argument will return all available S-Parameters for runID 0
+            % CST.getSParameters('S11') will return the S11 value for the latest Run ID
+            % CST.getSParameters('S21',runID) will return the S21 value for the simulation result with Run ID specified
+            % in the 2nd input argument. runID should be numeric.
             % CST.getSParameters on its own will return all sparameters
-            % from the most recent simulation.
-            % CST.getSParameters('SZmax(1)Zmax(1)') will return the
+            % from simulation with Run ID 0 (assuming it is available).
+            % CST.getSParameters('SZmax(1)Zmax(1)',3) will return the
             % reflection coefficient of mode 1 at the ZMax port for a unit
-            % cell type simulation
+            % cell simulation with runID 3
             %
             % Examples:
             % %Open an existing simulation with results (e.g.)
-            % CST = CST_MicrowaveStudio('C:\Users\Henry-Laptop\Documents\CST\BST\','BST_DRA_5GHz.cst')
+            % CST = CST_MicrowaveStudio() %Get handle to current CST project
             % % read in all sparameters
             % [freq,sparam,stype] = CST.getSParameters;
             % % read in S11
             % [freq,s11,type] = CST.getSParameter('S11')
-            %
-            % NOTE: We can only currently read in data from the latest
-            % parameter sweep, and cannot obtain the results from previous
-            % simulations yet. Hopefully this will be added in a future
-            % version.
-            % See Examples\Metasurface for more
-            %
-            
-            %I dont know the method CST uses to name its sparameter result
-            %files - but it seems they enter "(1)" after each port (I guess
-            %to indicate the number associated with each parameter sweep).
-            %I cannot work out how to get data from any of the previous
-            %parameter sweeps, and can only currently obtain the data from
-            %the latest simulation
-            %
-            %Update - it seems we need to use something like:
-            % 'GetResultIDsFromTreeItem( name sTreePath )'
-            
-            parSweepNum = 1; %To be used in future version
-            
-            %             if nargin == 2
-            %                %Check if only 1 parameter sweep has been performed - We
-            %                need to somehow acces the result navigator and check the
-            %                number of entries...
-            %                How to do this?
-            %                if nSweep == 1
-            %                     parSweepNum = 1;
-            %                     nn = 3;
-            %                end
-            %             end
+            % 
+            % % read in s11 data from runID 2
+            % [freq,s11,type] = CST.getSParameter('S11',2)
             
             
+            %If an sparameter type has been specified, then try to guess the sparamstring from some common names
             try
-                if nargin == 3 || nargin == 2
-                    
-                    if numel (sParamType) == 3
-                        sparameterString = sprintf('%s(%d)%s(%d)',sParamType(1:2),parSweepNum,sParamType(3),parSweepNum);
+                if nargin >= 2 
+                    switch lower(sParamType)
+                        case {'s11','s1,1'}
+                            sparamstring = 'S1,1';
+                        case {'s21','s2,1'}
+                            sparamstring = 'S2,1';
+                        case {'s12','s1,2'}
+                            sparamstring = 'S1,2';
+                        case {'s22','s2,2'}
+                            sparamstring = 'S2,2'; 
+                        case {'zmaxzmax','z11'}
+                            sparamstring = 'SZmax(1),Zmax(1)'; %mode (1)
+                       case {'zmaxzmin','z12'}
+                            sparamstring = 'SZmax(1),Zmin(1)'; %mode (1)
+                       case {'zminzmax','z21'}
+                            sparamstring = 'SZmin(1),Zmax(1)'; %mode (1)
+                       case {'zminzmin','z22'}
+                            sparamstring = 'SZmin(1),Zmin(1)'; %mode (1)
+                        otherwise
+                            sparamstring = sParamType;
                     end
                     
-                    fname = fullfile(obj.mws.invoke('GetProjectPath','Result'),['c',sparameterString,'.sig']);
+                    obj.mws.invoke('SelectTreeItem',['1D Results\S-Parameters\',sparamstring]);
                     
-                    result1D = obj.mws.invoke('Result1DComplex',fname);
+                    resultTree = obj.mws.invoke('Resulttree');
+                    resultIDs = resultTree.invoke('GetResultIDsFromTreeItem',['1D Results\S-Parameters\',sparamstring]);
+                    
+                    nCurves = numel(resultIDs);
+                    
+                    if nargin == 2 %If no ParSweepNum, then output the last sweep
+                        parSweepNum = nCurves-1;
+                    end
+                    
+                    runID = obj.getRunIDs;
+                    
+                    idx = runID == parSweepNum;
+                    
+                    resultID = resultIDs{idx};
+                    
+                    result1D = resultTree.invoke('GetResultFromTreeItem',['1D Results\S-Parameters\',sparamstring],resultID);
+                    
                     freq = result1D.invoke('GetArray','x');
                     s_real = result1D.invoke('GetArray','yre');
                     s_im = result1D.invoke('GetArray','yim');
                     sparam = s_real + 1i*s_im;
-                    sFileType = sParamType;
+                    sFileType = {sParamType, resultID};
                     
                     return %Results has been successfully obtained so return
                 end
-            catch
-                warning('The requested S-Param type "%s" was not found, All available S-parameters have been output',sParamType)
+            catch err
+                try 
+                    errStr = err.message;
+                    errStr = replace(errStr,'\','\\');
+                    cprintf('SystemCommands',[errStr,'\n'])
+                catch
+                    display(err.message)
+                end
+                warning('The requested S-Param type "%s" with runID "%d" was not found. Attempting to fetch all available S-parameter data for "RunID 0"',sParamType,parSweepNum)
             end
             
             
-            %Search trough all s-parameter results and return all available
-            %results. If the requested sparam type is not available output
-            %empty parameters. If a defined s-parameter has been requested,
-            %output all results that fit that string only
-            
-            %---------For Future Use-----------
-            %             if nargin == 2
-            %                 sParamType = [sParamType(1:2),',',sParamType(3)];
-            %                 if ~obj.mws.invoke('SelectTreeItem',['1D Results\S-Parameters\',sParamType])
-            %                     obj.mws.invoke('SelectTreeItem','1D Results\S-Parameters');
-            %                 end
-            %             else
-            %                 obj.mws.invoke('SelectTreeItem','1D Results\S-Parameters');
-            %             end
-            
-            
-            obj.mws.invoke('SelectTreeItem','1D Results\S-Parameters');
+            obj.mws.invoke('SelectTreeItem',['1D Results\S-Parameters\']);
             
             plot1D = obj.mws.invoke('Plot1D');
             nCurves = plot1D.invoke('GetNumberOfCurves');
-            sFileType = cell(0,1);
+            sFileType = cell(0,2);
+            
+            if nCurves == 0
+               error('CSTMicrowaveSutdio:NoDataAvailable',...
+                   'No S-Parameter data available for Run ID 0')
+            end
             
             for i = 1:nCurves
                 fname = plot1D.invoke('GetCurveFileName',i-1);
                 
-                [~,sFileType{end+1},~] = fileparts(fname); %#ok<AGROW>
+                [~,sFileType{end+1,1},~] = fileparts(fname); %#ok<AGROW>
                 %remove the c in sFileType - is this always the case?
-                sFileType{end} = sFileType{end}(2:end);
+                sFileType{end,1} = sFileType{end,1}(2:end);
+                sFileType{end,2} = '3D:RunID:0';
                 result1D = obj.mws.invoke('Result1DComplex',fname);
                 
                 
