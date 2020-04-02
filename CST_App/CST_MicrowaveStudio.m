@@ -466,6 +466,18 @@ classdef CST_MicrowaveStudio < handle
             obj.update(sprintf('Boolean Insert Shapes:%s,%s',object1,object2),VBA);
             
         end
+        function subtractObject(obj,object1,object2)
+            %Insert objects into each other
+            VBA = sprintf('Solid.Subtract "%s", "%s"',object1,object2);
+            obj.update(sprintf('Boolean Subtract Shapes:%s,%s',object1,object2),VBA);
+            
+        end
+        function intersectObjects(obj,object1,object2)
+            %Insert objects into each other
+            VBA = sprintf('Solid.Intersect "%s", "%s"',object1,object2);
+            obj.update(sprintf('Boolean Intersect Shapes:%s,%s',object1,object2),VBA);
+            
+        end
         function addNormalMaterial(obj,name,Eps,Mue,C,varargin)
             %addNormalMaterial(obj,name,Eps,Mue,C)
             %Add a new 'Normal' material to the CST project
@@ -735,7 +747,7 @@ classdef CST_MicrowaveStudio < handle
                 if any(strcmp(boundary,boundaries))
                     
                     switch lower(varargin{i+1})
-                        case 'open add space'
+                        case {'open add space','open (add space)'}
                             boundaryType = 'expanded open';
                         otherwise
                             boundaryType = varargin{i+1};
@@ -2549,6 +2561,30 @@ classdef CST_MicrowaveStudio < handle
             
             obj.mws.invoke('RunMacro',macroName);
         end
+        function importSTLfile(obj,filename,componentName,objectName,varargin)
+            
+            p = inputParser;
+            p.addParameter('units','m')
+            
+            p.parse(varargin{:});
+            
+            VBA = sprintf(['With STL\n',...
+                '.Reset\n',... 
+                '.Id "1"\n',...
+                '.Name "%s"\n',...
+                '.Component "%s"\n',...
+                '.FileName "%s"\n',...
+                '.ImportToActiveCoordinateSystem "True"\n',...
+                '.ScaleToUnit "0"\n',...
+                '.ImportFileUnits "%s"\n',...
+                '.Read\n',...
+                'End With'],...
+                objectName,componentName,filename,p.Results.units);
+            
+            obj.update(['import stl file : ',filename],VBA);
+            
+        end
+        
         function stlname = exportSTLfile(obj,componentName,objectName,varargin)
             
             p = inputParser;
