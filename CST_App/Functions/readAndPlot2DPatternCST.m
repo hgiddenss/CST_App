@@ -3,7 +3,9 @@ function [varargout] = readAndPlot2DPatternCST(CST,f,theta,phi,pAx)
 %   Detailed explanation goes here
 
 if numel(phi) > 1
-    
+    plotAngle = phi;
+else
+    plotAngle = theta;
 end
 
 [Eabs] = CST.getFarField(f,theta,phi,'units','directivity');
@@ -15,7 +17,7 @@ if nargin == 4
     pAx = polaraxes('parent',figure);
 end
 
-polarplot(pAx,deg2rad(phi),Eabs,'-');
+polarplot(pAx,deg2rad(plotAngle),Eabs,'-');
 
 pAx.RLim = [-15 15];
 

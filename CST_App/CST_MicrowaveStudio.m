@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.17'
+        version = '1.2.18'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -123,7 +123,7 @@ classdef CST_MicrowaveStudio < handle
             
             if nargin == 0
                 %Get the current MWS session
-                obj.CST = actxserver('CSTStudio.application');
+                obj.CST = actxserver('CSTStudio.application.2019');
                 obj.mws = obj.CST.Active3D;
                 if isempty(obj.mws)
                     error('CSTMicrowaveStudio:NoFileOpen',...
@@ -162,7 +162,7 @@ classdef CST_MicrowaveStudio < handle
                 fprintf('Creating new microwave studio session\n');
                 dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
                 obj.folder = dirstring;
-                obj.CST = actxserver('CSTStudio.application');
+                obj.CST = actxserver('CSTStudio.application.2019');
                 obj.mws = obj.CST.invoke('NewMWS');
                 
                 % For Future Version - allow user to store some values as
@@ -1028,10 +1028,10 @@ classdef CST_MicrowaveStudio < handle
         end
         function addSParamMaterialThinPanel(obj,name,S11,S21,freq,impedance,c)
             
-            S11_r = real(S11);
-            S11_i = imag(S11);
-            S21_r = real(S21);
-            S21_i = imag(S21);
+            %S11_r = real(S11);
+            %S11_i = imag(S11);
+            %S21_r = real(S21);
+            %S21_i = imag(S21);
             
             VBA = sprintf(['With Material \n',...
                 '.Reset\n',...
@@ -1042,9 +1042,9 @@ classdef CST_MicrowaveStudio < handle
                 '.CoordSystemType "Cartesian"\n',...
                 '.SetCoatingTypeDefinition "SMATRIX_TABLE"\n',...
                 '.ResetTabulatedCompactModelList\n',...
-                '.MaximalOrderFitTabulatedCompactModel "10"\n',...
-                '.ErrorLimitFitTabulatedCompactModel "0.001"\n',...
-                '.UseOnlyDataInSimFreqRangeTabulatedCompactModel "False"\n',...
+                '.MaximalOrderFitTabulatedCompactModel "6"\n',...
+                '.ErrorLimitFitTabulatedCompactModel "0.01"\n',...
+                '.UseOnlyDataInSimFreqRangeTabulatedCompactModel "True"\n',...
                 '.SetSymmTabulatedCompactModelImpedance "%.2f"\n',... %impedance
                 '.TabulatedCompactModelAnisotropic "False"\n',...
                 '.NLAnisotropy "False"\n',...
@@ -1054,6 +1054,11 @@ classdef CST_MicrowaveStudio < handle
             
             VBA2 = [];
             for i = 1:length(freq)
+                S11_r = real(S11);
+                S11_i = imag(S11);
+                S21_r = real(S21);
+                S21_i = imag(S21);
+                
                 VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%.2f", "%.2f", "%.2f", "%.2f", "1"\n',...
                     freq(i),S11_r,S11_i,S21_r,S21_i)]; %#ok<AGROW>
             end
@@ -1197,6 +1202,10 @@ classdef CST_MicrowaveStudio < handle
             obj.update(['new component:',component],['Component.New "',component,'"']);
         end
         function setFreq(obj,F1,F2)
+            if nargin == 2
+                F2 = F1(2);
+                F1 = F1(1);
+            end
             obj.update('SetFrequency',sprintf('Solver.FrequencyRange "%f", "%f"',F1,F2));
             %obj.F1 = F1;
             %obj.F2 = F2;
@@ -1375,7 +1384,11 @@ classdef CST_MicrowaveStudio < handle
             
             runIDStrings = resultTree.invoke('GetResultIDsFromTreeItem',sparamtype);
             runID = split(runIDStrings,':');
-            runID = runID(:,3);
+            if size(runID,2) == 1
+                runID = runID(3);
+            else
+                runID = runID(:,3);
+            end
             runIDs = str2double(runID);
         end
         function [freq,sparam,sFileType] = getSParameters(obj,sParamType,parSweepNum) 
@@ -1465,7 +1478,7 @@ classdef CST_MicrowaveStudio < handle
             end
             
             
-            obj.mws.invoke('SelectTreeItem',['1D Results\S-Parameters\']);
+            obj.mws.invoke('SelectTreeItem','1D Results\S-Parameters\');
             
             plot1D = obj.mws.invoke('Plot1D');
             nCurves = plot1D.invoke('GetNumberOfCurves');
@@ -1491,7 +1504,7 @@ classdef CST_MicrowaveStudio < handle
                     s_real = result1D.invoke('GetArray','yre');
                     s_im = result1D.invoke('GetArray','yim');
                     
-                    sparam(:,i) = s_real + 1i*s_im; %#ok<AGROW>
+                    sparam(:,i) = s_real + 1i*s_im; %%#ok<AGROW>
                     
                 catch err
                     warning('CSTMicrowaveSutdio:NoDataAvailable','Error Occurred when fetching sparameter data - maybe the vectors contain a different number of frequency points');
@@ -2229,6 +2242,17 @@ classdef CST_MicrowaveStudio < handle
                     end
             end
         end
+        function showFarfieldCuts(obj)
+           
+            VBA = sprintf(['With FarfieldPlot\n'...
+                    '.ClearCuts '' lateral=phi, polar=theta\n'...
+                    '.AddCut "lateral", "0", "1"\n'...
+                    '.AddCut "lateral", "90", "1"\n'...
+                    '.AddCut "polar", "90", "1"\n'...
+                    'End With']);
+            obj.addToHistory('ShowFarfieldCuts',VBA);
+        end
+        
         function [idStrings] = getFieldIDStrings(obj,monitor)
             %getFieldIDStrings
             %   getFieldIDStrings returns a list of all the available 3D and
@@ -2710,7 +2734,7 @@ classdef CST_MicrowaveStudio < handle
     methods (Static)
         function [CST,mws] = openFile(folder,filename)
             
-            CST = actxserver('CSTStudio.application');
+            CST = actxserver('CSTStudio.application.2019');
             CST.invoke('OpenFile',fullfile(folder,filename));
             mws = CST.Active3D;
         end
