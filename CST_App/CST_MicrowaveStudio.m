@@ -123,7 +123,7 @@ classdef CST_MicrowaveStudio < handle
             
             if nargin == 0
                 %Get the current MWS session
-                obj.CST = actxserver('CSTStudio.application.2019');
+                obj.CST = actxserver('CSTStudio.application');
                 obj.mws = obj.CST.Active3D;
                 if isempty(obj.mws)
                     error('CSTMicrowaveStudio:NoFileOpen',...
@@ -162,7 +162,7 @@ classdef CST_MicrowaveStudio < handle
                 fprintf('Creating new microwave studio session\n');
                 dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
                 obj.folder = dirstring;
-                obj.CST = actxserver('CSTStudio.application.2019');
+                obj.CST = actxserver('CSTStudio.application');
                 obj.mws = obj.CST.invoke('NewMWS');
                 
                 % For Future Version - allow user to store some values as
@@ -2745,7 +2745,7 @@ classdef CST_MicrowaveStudio < handle
     methods (Static)
         function [CST,mws] = openFile(folder,filename)
             
-            CST = actxserver('CSTStudio.application.2019');
+            CST = actxserver('CSTStudio.application');
             CST.invoke('OpenFile',fullfile(folder,filename));
             mws = CST.Active3D;
         end
