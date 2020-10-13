@@ -102,7 +102,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.19'
+        version = '1.2.20'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -123,7 +123,7 @@ classdef CST_MicrowaveStudio < handle
             
             if nargin == 0
                 %Get the current MWS session
-                obj.CST = actxserver('CSTStudio.application');
+                obj.CST = actxserver('CSTStudio.application.2019');
                 obj.mws = obj.CST.Active3D;
                 if isempty(obj.mws)
                     error('CSTMicrowaveStudio:NoFileOpen',...
@@ -162,7 +162,7 @@ classdef CST_MicrowaveStudio < handle
                 fprintf('Creating new microwave studio session\n');
                 dirstring = fullfile(obj.folder,'CST_MicrowaveStudio_Files');
                 obj.folder = dirstring;
-                obj.CST = actxserver('CSTStudio.application');
+                obj.CST = actxserver('CSTStudio.application.2019');
                 obj.mws = obj.CST.invoke('NewMWS');
                 
                 % For Future Version - allow user to store some values as
@@ -492,6 +492,11 @@ classdef CST_MicrowaveStudio < handle
             p.addParameter('sigmaM',0);
             p.parse(varargin{:});
             
+            tandGiven = 'False';
+            tandMGiven = 'False';
+            if p.Results.tand ~= 0; tandGiven = 'True'; end
+            if p.Results.tandM ~= 0; tandMGiven = 'True'; end
+            
             %Check if input args are parameters or strings
             Eps = obj.checkParam(Eps);
             Mue = obj.checkParam(Mue);
@@ -506,14 +511,20 @@ classdef CST_MicrowaveStudio < handle
                 '.Type "Normal"\n',...
                 '.Epsilon "%s"\n',...
                 '.Mue "%s"\n',...
-                '.tand "%s"\n',...
-                '.sigma "%s"\n',...
-                '.tandM "%s"\n',...
-                '.sigmaM "%s"\n',...
+                '.TanD "%s"\n',...
+                '.TanDFreq "0.0"\n',...
+                '.TanDGiven "%s"\n',...
+                '.TanDModel "ConstTanD"\n',...
+                '.Sigma "%s"\n',...
+                '.TanDM "%s"\n',...
+                '.TanDMFreq "0.0"\n',...
+                '.TanDMGiven "%s"\n',...
+                '.TanDMModel "ConstTanD"\n',...
+                '.SigmaM "%s"\n',...
                 '.Colour "%f", "%f", "%f"\n',...
                 '.Create\n',...
                 'End With'],...
-                name,Eps,Mue,tand,sigma,tandM,sigmaM,C(1),C(2),C(3));
+                name,Eps,Mue,tand,tandGiven,sigma,tandM,tandMGiven,sigmaM,C(1),C(2),C(3));
             obj.update(['define material: ',name],VBA);
         end
         function addAnisotropicMaterial(obj,name,Eps,Mue,C)
@@ -2734,7 +2745,7 @@ classdef CST_MicrowaveStudio < handle
     methods (Static)
         function [CST,mws] = openFile(folder,filename)
             
-            CST = actxserver('CSTStudio.application');
+            CST = actxserver('CSTStudio.application.2019');
             CST.invoke('OpenFile',fullfile(folder,filename));
             mws = CST.Active3D;
         end
