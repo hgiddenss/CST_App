@@ -20,7 +20,7 @@ st = size(theta);
 if any(st == 1)
 [phi,theta] = meshgrid(phi,theta);
 end
-[X,Y,Z] = sph2cart(theta,phi,R);
+[X,Y,Z] = sph2cart(phi,theta,R);
 
 s = surf(hAx,X,Y,Z,C,varargin{:});
 if nargout == 1

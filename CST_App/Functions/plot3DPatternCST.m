@@ -44,7 +44,7 @@ end
 t = deg2rad(90:-d_Theta:-90);
 p = deg2rad(-180:d_Phi:180);
 
-s = sphericalSurface(hAx,p,t,Eabs1',Eabs','edgealpha',0.2,'FaceColor','interp');
+s = sphericalSurface(hAx,t,p,Eabs1,Eabs,'edgealpha',0.2,'FaceColor','interp');
 axis equal
 cbar = colorbar;
 

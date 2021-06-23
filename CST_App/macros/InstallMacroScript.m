@@ -1,4 +1,4 @@
-CST = actxserver('CSTStudio.application');
+CST = actxserver('CSTStudio.application.2019');
 mws = CST.Active3D;
 
 direc = mws.invoke('GetMacroPathFromIndex',0);

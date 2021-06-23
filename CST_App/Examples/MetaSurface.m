@@ -50,8 +50,8 @@ CST.runSimulation
 
 ax = axes('parent',figure('Position',[680 576 780 402]));
 hold on
-for i = 1:numel(SType)
+for i = 1:length(SType)
     plot(ax,freq(:,i),20*log10(abs(S(:,i))))
 end
-legend(SType,'location','eastoutside')
+legend(SType(:,1),'location','eastoutside')
 

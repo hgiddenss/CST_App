@@ -19,7 +19,7 @@ classdef CST_MicrowaveStudio < handle
     %   quit
     %   openFile (Static)
     %
-    %   --Paremeter Methods
+    %   --Paremeter Methods (**Needs Updating 23/06/2021**)
     %   addParameter
     %   changeParemeter
     %   parameterUpdate
@@ -40,6 +40,7 @@ classdef CST_MicrowaveStudio < handle
     %   --Build Methods--
     %   addNormalMaterial
     %   addAnisotropicMaterial
+    %   addDispersiveMaterial
     %   addBrick
     %   addCylinder
     %   addPolygonBlock
@@ -102,7 +103,7 @@ classdef CST_MicrowaveStudio < handle
         %All commands will be added in same action and it is sometimes fast when dealing with large loops.
     end
     properties(Access = private)
-        version = '1.2.20'
+        version = '1.2.23'
     end
     methods
         function obj = CST_MicrowaveStudio(folder,filename)
@@ -546,6 +547,53 @@ classdef CST_MicrowaveStudio < handle
                 name,Eps(1),Eps(2),Eps(3),Mue(1),Mue(2),Mue(3),C(1),C(2),C(3));
             obj.update(['define material: ',name],VBA);
         end
+        function addDispersiveMaterial(obj,name,F,Eps,tanD,delta,C,varargin)
+            %addDispersiveMaterial(obj,name,Eps,Mue,C)
+            %Add a material with user-defined dispersive properties to the CST project
+            %F, Eps, tanD and delta are arrays with the same number of elements representing the frequency points, real
+            %permittivity, loss tangent, and weighting values of the dispersive material
+            %Optional arguments are 'N', 'errorLimit', which have a default value of 10 and 0.1
+            %Currently only working for dielectric materials
+            
+            p = inputParser;
+            p.addParameter('N',10);
+            p.addParameter('errorLimit',0.1);
+            p.parse(varargin{:});
+            
+                       
+            VBA1 =  sprintf(['With Material\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.DispModelEps "None"\n',...
+                '.DispModelMu "None"\n',...
+                '.DispersiveFittingSchemeEps "Nth Order"\n',...
+                '.MaximalOrderNthModelFitEps "%d"\n',...
+                '.ErrorLimitNthModelFitEps "%.2f"\n',...
+                '.UseOnlyDataInSimFreqRangeNthModelEps "False"\n',...
+                '.DispersiveFittingSchemeMu "Nth Order"\n',...
+                '.MaximalOrderNthModelFitMu "%d"\n',...
+                '.ErrorLimitNthModelFitMu "%.2f"\n',...
+                '.UseOnlyDataInSimFreqRangeNthModelMu "False"\n',...
+                '.DispersiveFittingFormatEps "Real_Tand"\n',...
+                '.Colour "%f", "%f", "%f"\n',...
+                ],...
+                name,p.Results.N,p.Results.errorLimit,p.Results.N,p.Results.errorLimit,C(1),C(2),C(3));
+            
+            VBA2 = [];
+            for i = 1:numel(F)
+            VBA2 = [VBA2,...
+                sprintf('.AddDispersionFittingValueEps "%.3f", "%.3f", "%.3f", "%.2f"\n',F(i),Eps(i),tanD(i),delta(i))]; %#ok<AGROW>
+            end
+            
+            VBA = sprintf([VBA1,VBA2,...
+            '.UseGeneralDispersionEps "True"\n',...
+            '.UseGeneralDispersionMu "False"\n',...
+            '.Create\n',...
+                'End With']);
+            
+            obj.update(['define material: ',name],VBA);
+            
+        end
         function addDiscretePort(obj,X,Y,Z,R,impedance)
             %Add a discrete line source in the positions defined by the X, Y and Z
             %inputs, with radius, R, and impedance defined by the other
@@ -893,6 +941,109 @@ classdef CST_MicrowaveStudio < handle
                 s.invoke('SetUseIndividualColor',[component,':',name],'1');
                 s.invoke('ChangeIndividualColor',[component,':',name],num2str(C(1)),num2str(C(2)),num2str(C(3)));
             end
+        end
+        function addCurve3D(obj,points,varargin)
+            p = inputParser;
+            p.addParameter('curve','3dpolygon1')
+            p.addParameter('curveName','curve1')
+            p.parse(varargin{:});
+            
+            VBA = sprintf(['With Polygon3D\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Curve "%s"\n',...
+                '.Point "%f", "%f", "%f"\n'],...
+                p.Results.curve,p.Results.curveName,points(1,1),points(1,2),points(1,3));
+            
+            VBA2 = [];
+            for i = 2:length(points)
+                VBA2 = [VBA2,sprintf('.Point "%f", "%f", "%f"\n', points(i,1),points(i,2),points(i,3))]; %#ok<AGROW>
+            end
+            VBA = [VBA,VBA2,sprintf('.create\nEnd With')];
+            
+            obj.update(['define curve: ',p.Results.curve,':',p.Results.curveName],VBA);
+        end
+        function addHelix(obj,r0,h,n,h1,r1,name,component,material,varargin)
+            %Add a helix with radius r0, turn height h, number of turns n, base height h1 and wire radius r1 to the CST
+            %model
+            
+            p = inputParser;
+            p.addParameter('curve','3dpolygon1')
+            p.addParameter('curveName','helix1')
+            p.addParameter('nTheta',37)
+            p.parse(varargin{:});
+            
+            nTheta = p.Results.nTheta;
+            theta = deg2rad(0:360/(nTheta-1):360);
+            Z = 0:h/(nTheta-1):h;
+            R = ones(1,numel(theta))*r0;
+
+            theta(end) = [];
+            Z(end) = [];
+            R(end) = [];
+
+            theta = repmat(theta,1,n)';
+            R = repmat(R,1,n)';
+            Z = repmat(Z,n,1)';
+            for i = 1:n
+                Z(:,i) = Z(:,i)+(i-1)*h;
+            end
+            Z = Z(:);
+            
+            theta(end+1) = deg2rad(360);
+            R(end+1) = r0;
+            Z(end+1) = n*h;
+            
+            [X,Y,Z] = pol2cart(theta,R,Z);
+            
+            X = [X(1);X]; 
+            Y = [Y(1);Y]; 
+            Z = Z+h1;
+            Z = [0;Z]; 
+            
+            obj.addCurve3D([X,Y,Z],'curve',p.Results.curve,'curveName',p.Results.curveName);
+            
+            VBA = sprintf(['With Circle\n',...
+                '.Reset\n',...
+                '.Name "helix_circle1"\n',...
+                '.Curve "curve1"\n',...
+                '.Radius "%f"\n',...
+                '.Xcenter "%f"\n',...
+                '.Ycenter "%f"\n',...
+                '.Segments "0"\n',...
+                '.Create\n',...
+                'End With'],r1,X(1),Y(1));
+            obj.update('define curveCircle: curve1:helix_circle1',VBA);
+            
+            obj.sweepCurve([p.Results.curveName,':',p.Results.curve],'curve1:helix_circle1',name,component,material);
+        end
+        function sweepCurve(obj,sweepPath,sweepCurve,name,component,material,varargin)
+            
+            
+            p = inputParser;
+            p.addParameter('twistAngle',0);
+            p.addParameter('taperAngle',0);
+            
+            p.parse(varargin{:});
+            
+            VBA = sprintf(['With SweepCurve\n',...
+                '.Reset\n',...
+                '.Name "%s"\n',...
+                '.Component "%s"\n',...
+                '.Material "%s"\n',...
+                '.Twistangle "%.1f"\n',...
+                '.Taperangle "%.1f"\n',...
+                '.ProjectProfileToPathAdvanced "True"\n',...
+                '.CutEndOff "True"\n',...
+                '.DeleteProfile "True"\n',...
+                '.DeletePath "True"\n',...
+                '.Path "%s"\n',...
+                '.Curve "%s"\n',...
+                '.Create\n',...
+                'End With'],name,component,material,p.Results.twistAngle',p.Results.taperAngle,sweepPath,sweepCurve);
+            
+            obj.update(['define sweepProfile: ',[component,':',name]],VBA);
+            
         end
         function connectFaces(obj,component1,face1,component2,face2,component,name,material)
             %Connect two face to form a solid block. This is useful if
@@ -1261,7 +1412,11 @@ classdef CST_MicrowaveStudio < handle
                 case 't'
                     s = obj.mws.invoke('Solver');   % handle to time domain solver
             end
+            tStart = tic;
+            fprintf('Simulation Running...\n') 
             s.invoke('Start');
+            fprintf('Simulation Finished\n');
+            toc(tStart)
         end
         function [freq,sparam,sparamType] = getSParams(obj,varargin)
             %Get the S-Parameter results from CST
@@ -1562,6 +1717,8 @@ classdef CST_MicrowaveStudio < handle
                 
                 sigID = strsplit(sigID,'_');
                 sigID = sigID{end};
+                sigID = strsplit(sigID,' ');
+                sigID = sigID{1};
                 result1D = obj.mws.invoke('Result1D',fname);
                 switch lower(sigID)
                     case 're'
@@ -1578,8 +1735,11 @@ classdef CST_MicrowaveStudio < handle
             [f,iA,~] = unique(f);
             Eps = Eps(iA);
             Eps_dash = Eps_dash(iA);
+            try
             tan_d = tan_d(iA);
-            
+            catch
+                tan_d = Eps_dash./Eps;
+            end
             f1 = f(1);
             f2 = f(end);
             
@@ -2679,7 +2839,14 @@ classdef CST_MicrowaveStudio < handle
             existingMacroInfo(1:2) = [];
             macroFilePath = fileparts(mfilename('fullpath'));
             macroFilePath = fullfile(macroFilePath,'macros');
+            if ~isfolder(macroFilePath)
+                error('CST_MicrowaveStudio:MissingFolder',['I could not identify the /macros folder. ',...
+                    'Make sure the CST_MicrowaveStudio.m file and the directory structure have not been altered. CST_App can be downloaded from ',...
+                    'https://uk.mathworks.com/matlabcentral/fileexchange/67731-hgiddenss-cst_app']);
+                
+            end
             allMacros = dir(macroFilePath);
+            
             allMacros(1:2) = [];
             existingMacroFilenames = cell(numel(existingMacroInfo),1);
             for i = 1:numel(existingMacroInfo)
