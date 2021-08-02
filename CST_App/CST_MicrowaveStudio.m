@@ -264,6 +264,14 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
+        function deleteParameter(obj,name)
+            % CST_MicrowaveStudio.deleteParameter(name)
+            % Delete the named parameter from CST project
+            
+            if obj.isParameter(name)
+                obj.mws.invoke('DeleteParameter',name)
+            end
+        end
         function changeParameterValue(obj,varargin)
             % CST_MicrowaveStudio.changeParameterValue(name,value)
             % Change the value of an existing parameter. Value must be a
