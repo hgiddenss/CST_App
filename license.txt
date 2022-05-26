@@ -1,4 +1,4 @@
-Copyright (c) 2018, Henry Giddens
+Copyright (c) 2022, Henry Giddens
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
