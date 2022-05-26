@@ -1,7 +1,7 @@
 % Copyright Henry Giddens, 2018
 
 %Generate a pixelated metasurface where metal is represented by 1. Place
-%the array on an FR-4 substrate with thickness of 0.8mm, use floguet boundaries in the x and y
+%the array on an FR-4 substrate with thickness of 0.8mm, use floquet boundaries in the x and y
 %directions. Select the frequency fomain solver:
 
 %First generate the random pattern with size nPix-x-nPix

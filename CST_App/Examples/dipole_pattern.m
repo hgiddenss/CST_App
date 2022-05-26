@@ -10,8 +10,13 @@ CST = CST_MicrowaveStudio(cd,'dipole');
 
 CST.setFreq(2,3);
 lamda = 3e8/2.5e9*1e3;
+L = lamda/2;
 
-CST.addDiscretePort([0 0],[0 0],[-lamda/4 lamda/4],0.1,50);
+CST.addDiscretePort([0 0],[-0 -0],[-0.5 0.5],0.1,73);
+CST.addCylinder(1,0,'z',0,0,[-0.5 -L/2],'Dipole1','component1','PEC')
+CST.addCylinder(1,0,'z',0,0,[0.5 L/2],'Dipole2','component1','PEC')
+CST.addBrick([-1 1],[-1 1],[-0.5 -0.5-1],'arm1','component1','PEC');
+CST.addBrick([-1 1],[-1 1],[0.5 0.5+1],'arm2','component1','PEC');
 
 CST.setBoundaryCondition('xmin','open add space','xmax','open add space','ymin','open add space',...
     'ymax','open add space','zmin','open add space','zmax','open add space')
@@ -69,7 +74,7 @@ hFig = figure;
 hFig.Position(3) = 1200;
 ax1 = subplot(1,3,1,'parent',hFig);
 
-[Efield_absZ,x,y,zPos] = CST.getEFieldVector(2.5,'abs','xy',27);
+[Efield_absZ,x,y,zPos] = CST.getEFieldVector(2.5,'abs','xy',27,'ffid','e-field (f=2.5)_1,1.m3d');
 s = surf(ax1,x,y,Efield_absZ);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
@@ -83,7 +88,7 @@ ylabel('Y (mm)');
 title("Z = " + zPos + " mm");
 
 ax2 = subplot(1,3,2,'parent',hFig);
-[Efield_absY,x,yPos,z] = CST.getEFieldVector(2.5,'abs','xz',4);
+[Efield_absY,x,yPos,z] = CST.getEFieldVector(2.5,'abs','xz',4,'ffid','e-field (f=2.5)_1,1.m3d');
 s = surf(ax2,x,z,Efield_absY);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
@@ -97,7 +102,7 @@ ylabel('Z (mm)');
 title("Y = " + yPos + " mm");
 
 ax3 = subplot(1,3,3,'parent',hFig);
-[Efield_absX,xPos,y,z] = CST.getEFieldVector(2.5,'abs','yz',10);
+[Efield_absX,xPos,y,z] = CST.getEFieldVector(2.5,'abs','yz',10,'ffid','e-field (f=2.5)_1,1.m3d');
 s = surf(ax3,y,z,Efield_absX);
 s.EdgeAlpha = 0;
 s.FaceColor = 'interp';
