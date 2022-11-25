@@ -1,4 +1,4 @@
-function [varargout] = plot3DPatternCST(CST,f,ffid,EMin,hAx,units)
+function [varargout] = plot3DPatternCST(CST,f,ffid,EMin,hAx,units,EMaxPlot)
 %READANDPLOTPATTERNCST Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -28,9 +28,12 @@ if norm
     Eabs = Eabs - EMax;
 end
 
-
-EMax = max(Eabs(:));
-EMax = ceil(EMax/5)*5;
+if nargin == 6
+    EMax = max(Eabs(:));
+    EMax = ceil(EMax/5)*5;
+else
+    EMax = EMaxPlot;
+end
 
 EMin = EMax - abs(EMin);
 

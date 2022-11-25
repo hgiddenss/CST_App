@@ -290,7 +290,9 @@ classdef CST_MicrowaveStudio < handle
                     obj.mws.invoke('StoreDoubleParameter',name{i},value{i});
                 end
             end
-            obj.parameterUpdate;
+            if obj.autoUpdate
+                obj.parameterUpdate;
+            end
         end
         function parameterUpdate(obj)
             % CST_MicrowaveStudio.parameterUpdate
@@ -1197,7 +1199,9 @@ classdef CST_MicrowaveStudio < handle
             
         end
         function addSParamMaterialThinPanel(obj,name,S11,S21,freq,impedance,c)
-            
+            % Add thin panel sparameter materials
+            % Only working for S11 = S22 and S12 = S21
+
             %S11_r = real(S11);
             %S11_i = imag(S11);
             %S21_r = real(S21);
@@ -1224,12 +1228,29 @@ classdef CST_MicrowaveStudio < handle
             
             VBA2 = [];
             for i = 1:length(freq)
-                S11_r = real(S11);
-                S11_i = imag(S11);
-                S21_r = real(S21);
-                S21_i = imag(S21);
-                
-                VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%.2f", "%.2f", "%.2f", "%.2f", "1"\n',...
+                if length(S11) == length(freq)
+                    S11_r = num2str(real(S11(i)));
+                    S11_i = num2str(imag(S11(i)));
+                    S21_r = num2str(real(S21(i)));
+                    S21_i = num2str(imag(S21(i)));
+                else
+                    if isnumeric(S11)
+                        S11_r = num2str(real(S11));
+                        S11_i = num2str(imag(S11));
+                    else %input as a cellstr with parameter names ['s11_r','s11_i']
+                        S11_r  = obj.checkParam(S11{1});
+                        S11_i  = obj.checkParam(S11{2}); 
+                    end
+                    if isnumeric(S21)
+                        S21_r = num2str(real(S21));
+                        S21_i = num2str(imag(S21));
+                    else %input as a cellstr with parameter names ['s11_r','s11_i']
+                        S21_r  = obj.checkParam(S21{1});
+                        S21_i  = obj.checkParam(S21{2}); 
+                    end
+                end
+
+                VBA2 = [VBA2,sprintf('.AddSymmTabulatedCompactModelItem "%.2f", "%s", "%s", "%s", "%s", "1"\n',...
                     freq(i),S11_r,S11_i,S21_r,S21_i)]; %#ok<AGROW>
             end
             VBA = [VBA,VBA2,sprintf('.Create\nEnd With')];
@@ -1424,7 +1445,8 @@ classdef CST_MicrowaveStudio < handle
             fprintf('Simulation Running...\n') 
             s.invoke('Start');
             fprintf('Simulation Finished\n');
-            toc(tStart)
+            tStop = toc(tStart);
+            fprintf('Simulation Run Time was %.4f seconds.\n',tStop);
         end
         function [freq,sparam,sparamType] = getSParams(obj,varargin)
             %Get the S-Parameter results from CST
@@ -2486,6 +2508,10 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
+        function pickPoint(obj,x,y,z)
+            VBA = sprintf('Pick.PickPointFromCoordinates "%f", "%f", "%f"',x,y,z);
+            obj.update('PickPoint',VBA);
+        end
         function [components] = getComponentObjects(obj)
            
              solid = obj.mws.invoke('Solid');
@@ -2495,7 +2521,7 @@ classdef CST_MicrowaveStudio < handle
                  components{iShape+1} = solid.invoke('GetNameOfShapeFromIndex',iShape);
              end
         end
-        function [s,l] = drawObjectMatlab(obj,varargin)
+        function [s,l] = drawObjectMatlab(obj,varargin) 
             % drawObjectMatlab plots the CST_MicrowaveStudio geometery into
             % a matlab axes.
             % [s,l] = drawObjectMatlab() will plot all objects from all
