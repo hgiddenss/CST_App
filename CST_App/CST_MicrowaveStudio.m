@@ -2859,6 +2859,46 @@ classdef CST_MicrowaveStudio < handle
             end
             
         end
+        function loadMaterialFromLibrary(obj,material)
+            % loadMaterialFromLibrary(obj,material)
+            % Load a material from the material library where "material" is the name of the material to be loaded. If
+            % the material file does not exist in the library folder an error will be returned.
+            % Example:
+            % CST = CST_MicrowaveStudio();
+            % CST.loadMaterialFromLibrary('Rogers RO3003 (loss free)')
+            % CST.addBrick([0 15],[0 15],[0 1],'Substrate','component1','Rogers RO3003 (loss free)');
+            %
+            % See also addNormalMaterial
+            % 
+
+            install_path = obj.mws.invoke('GetInstallPath');
+            material_path = fullfile(install_path,'Library/Materials');
+            material_library = dir(material_path);
+            material_library(1:2) = [];
+            [~,material_files,ext] = fileparts({material_library(:).name});
+            idx = strcmp(material_files,material);
+            if any(idx)
+                material_filename = fullfile(material_path,material_files{idx});
+            else
+                error('CST_MicrowaveStudio:LoadMaterialFromLibrary','Material "%s" does not exist in the material library',material)
+            end
+            %fid = fopen(material_filename,'rt');
+            %fclose(fid);
+            lines = readlines([material_filename,ext{idx}]);
+            
+            idx_def = find(strcmp(lines,"[Definition]")); %should be line 1
+            idx_create = find(strcmp(strtrim(lines),".Create")); %end of definition statement
+            
+            [~,material_name,~] = fileparts(material_filename); %Strip away extension...
+
+            VBA = "With Material\n"+".Reset"+"\n.Name """+material_name+"""\n.Folder """"\n";
+            for i = (idx_def+1):idx_create
+                VBA = VBA+strtrim(lines(i))+"\n";
+            end
+            VBA = VBA+"End With";
+            VBA = sprintf(VBA);
+            obj.addToHistory(sprintf('Load Material From Library:%s',material),VBA)
+        end
     end
     methods (Hidden, Access = protected)
         function installMacros(obj)
