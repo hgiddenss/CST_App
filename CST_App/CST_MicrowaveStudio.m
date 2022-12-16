@@ -2899,6 +2899,58 @@ classdef CST_MicrowaveStudio < handle
             VBA = sprintf(VBA);
             obj.addToHistory(sprintf('Load Material From Library:%s',material),VBA)
         end
+        function setSimultaneousPortExcitation(obj,ports,amplitude,phase,status,frequency,excitationString)
+            % setSimultaneousPortExcitation sets the phase shift for multiple-port excitation environment at the
+            % specified frequency.
+            % setSimultaneousPortExcitation(obj,ports,amplitude,phase,status,frequency,excitationString) sets excitation
+            % parameters for the ports defined in "ports", with "phase" and "ampltidue". status is a true/false array to
+            % define which ports are turned on and which are turned off. excitationString is an optional argument for
+            % the excitation, otherwise it will be called "custom_simulataneous_excitation"
+            %
+            % Example:
+            % CST = CST_MicrowaveStudio(cd,'multiPort.cst')
+            % CST.setFreq(0, 3);
+            % CST.addDiscretePort([-15.614 -15.614],[-15.614 -15.614],[0 62.5],0,73) %port 1
+            % CST.addDiscretePort([-15.614 -15.614],[15.614 15.614],[0 62.5],0,73) %port 2
+            % CST.addDiscretePort([15.614 15.614],[15.614 15.614],[0 62.5],0,73) %port 3
+            % CST.addDiscretePort([15.614 15.614],[-15.614 -15.614],[0 62.5],0,73) %port 4
+            % ports = [1 2 3 4];
+            % phase = [0 -90 0 90];
+            % amplitude = [1 1 1 1];
+            % status = [1 1 1 1]; % turn all ports on
+            % CST.setSimultaneousPortExcitation(ports,amplitude,phase,status,2.4,'simultaneous_excitation_2.4GHz')
+            % CST.addFieldMonitor('farfield',2.4)
+            % CST.addFieldMonitor('efield',2.4)
+            % CST.runSimulation;
+
+            if nargin == 6
+                excitationString = 'custom_simulataneous_excitation';
+            end
+            
+            status_strings = "False";
+            status_strings = repmat(status_strings,numel(ports),1);
+            status_strings(status == 1) = "True";
+
+            VBA = sprintf(['With Solver \n',...
+            '.ResetExcitationModes\n',...
+            '.SParameterPortExcitation "False"\n',...
+            '.SimultaneousExcitation "True"\n',...
+            '.SetSimultaneousExcitAutoLabel "False"\n',...
+            '.SetSimultaneousExcitationLabel "%s"\n',...
+            '.SetSimultaneousExcitationOffset "Phaseshift"\n',...
+            '.PhaseRefFrequency "%.4f"\n',...
+            '.ExcitationSelectionShowAdditionalSettings "False"\n'],excitationString,frequency);
+            
+            for i = 1:numel(ports)
+                VBA = [VBA,sprintf('.ExcitationPortMode "%d", "1", "%.2f", "%.2f", "default", "%s"\n',...
+                    ports(i),amplitude(i),phase(i),status_strings(i))]; %#ok<AGROW> 
+
+            end
+            VBA = [VBA,sprintf('End With\n\n'),sprintf('With Solver\n.StimulationPort "Selected"\n.StimulationMode "All"\nEnd With')];
+
+            obj.addToHistory('define simultaneous excitation',VBA);
+
+        end
     end
     methods (Hidden, Access = protected)
         function installMacros(obj)
